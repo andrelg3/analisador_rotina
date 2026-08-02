@@ -328,7 +328,7 @@ if st.session_state.rotinas_carregadas:
                 st.error(f"Erro: {err}")
 
 # -----------------------------------------------------------------------------
-# AREA DE EXIBIÇÃO DA ROTINA DETALHADA EM TABELA NÍTIDA
+# AREA DE EXIBIÇÃO DA ROTINA DETALHADA (COM QUEBRA AUTOMÁTICA DE LINHA E LARGURAS AJUSTADAS)
 # -----------------------------------------------------------------------------
 if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info:
     info = st.session_state.rotina_selecionada_info
@@ -341,20 +341,80 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
     st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
 
     if not df.empty:
-        # Exibe a tabela formatada, limpa e com letras super nítidas
-        st.dataframe(
-            df,
-            column_config={
-                "Data": st.column_config.TextColumn("Data", width="small"),
-                "Turno": st.column_config.TextColumn("Turno", width="small"),
-                "Descrição da Rotina": st.column_config.TextColumn("Descrição da Rotina", width="large"),
-            },
-            hide_index=True,
-            use_container_width=True
-        )
+        # Estilização CSS personalizada para permitir Text Wrap e colunas proporcionais
+        estilo_tabela = """
+        <style>
+            .tabela-rotina {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+                font-family: Arial, sans-serif;
+            }
+            .tabela-rotina th {
+                background-color: #f0f2f6;
+                color: #31333F;
+                text-align: left;
+                padding: 12px;
+                border-bottom: 2px solid #e6e8eb;
+                font-weight: bold;
+            }
+            .tabela-rotina td {
+                padding: 12px;
+                border-bottom: 1px solid #e6e8eb;
+                vertical-align: top;
+                line-height: 1.5;
+                font-size: 14px;
+            }
+            .col-data {
+                width: 110px;
+                white-space: nowrap;
+                font-weight: 500;
+            }
+            .col-turno {
+                width: 110px;
+                white-space: nowrap;
+            }
+            .col-desc {
+                word-wrap: break-word;
+                white-space: normal;
+            }
+            .tabela-rotina tr:hover {
+                background-color: #f9f9f9;
+            }
+        </style>
+        """
+
+        # Construção da tabela em HTML puro
+        html_tabela = estilo_tabela + '<table class="tabela-rotina">'
+        html_tabela += """
+            <thead>
+                <tr>
+                    <th class="col-data">Data</th>
+                    <th class="col-turno">Turno</th>
+                    <th class="col-desc">Descrição da Rotina</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+
+        for _, row in df.iterrows():
+            html_tabela += f"""
+                <tr>
+                    <td class="col-data">{row['Data']}</td>
+                    <td class="col-turno">{row['Turno']}</td>
+                    <td class="col-desc">{row['Descrição da Rotina']}</td>
+                </tr>
+            """
+
+        html_tabela += '</tbody></table>'
+
+        # Renderiza a tabela HTML nítida e responsiva
+        st.markdown(html_tabela, unsafe_allow_html=True)
+
     else:
         st.warning("Não foram encontradas linhas de rotina válidas no texto capturado.")
 
+    st.write("")
     st.info("💡 **Próximo passo:** Na sequência, traremos a análise de IA ajustada para ler essa tabela e aplicar as rubricas do parecer!")
 
     # Auto-Scroll para a tabela
