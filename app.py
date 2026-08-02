@@ -68,26 +68,37 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
             await page.click("#btnLogar")
             await page.wait_for_load_state("networkidle")
 
-            # 2. Navegação até a rotina de análise
-            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise")
-            await page.wait_for_selector("text=ANALISAR ROTINA", timeout=15000)
+            # 2. Navegação até a página de rotina
+            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="networkidle")
+            
+            # Aguarda o elemento do formulário carregar
+            await page.wait_for_selector("div[name='multiplicadorNte']", timeout=15000)
 
-            # 3. Aplicando os Filtros de Busca
-            await page.click("label:has-text('Simular Acesso') + div")
-            await page.click(f"text={assessor}")
+            # 3. SELEÇÃO DO ASSESSOR (Simular Acesso)
+            # Clica para abrir o dropdown de 'Simular Acesso' (multiplicadorNte)
+            await page.click("div[name='multiplicadorNte'] a.select2-choice")
+            # Digita o nome do assessor no campo de busca interno que se abre
+            await page.fill(".select2-search input.select2-input:visible", assessor)
+            # Clica no resultado correspondente
+            await page.click(f".select2-result-label:has-text('{assessor}')")
 
-            await page.click("label:has-text('Ano de Referência') + div")
-            await page.click(f"text={ano}")
+            # 4. SELEÇÃO DO ANO DE REFERÊNCIA
+            # Abre o dropdown de Ano (geralmente é o 4º container ui-select da tela)
+            dropdowns = await page.query_selector_all("a.select2-choice")
+            if len(dropdowns) >= 4:
+                await dropdowns[3].click() # Abre o menu do Ano
+                await page.click(f".select2-result-label:has-text('{ano}')")
 
-            await page.click("label:has-text('Vigência') + div")
-            await page.click(f"text={vigencia}")
+            # 5. SELEÇÃO DA VIGÊNCIA (Mês)
+            # Abre o dropdown de Vigência
+            if len(dropdowns) >= 5:
+                await dropdowns[4].click() # Abre o menu da Vigência
+                await page.click(f".select2-result-label:has-text('{vigencia}')")
 
-            # 4. Pesquisar e Extrair
-            await page.click("button:has-text('Pesquisar')")
-            await page.wait_for_selector("table", timeout=10000)
-
-            linhas = await page.query_selector_all("tbody tr")
-            rotinas_encontradas = []
+            # 6. BOTÃO PESQUISAR
+            # Clica no botão usando o atributo ng-click="pesquisar()" exato que você inspecionou
+            await page.click("input[ng-click='pesquisar()']")
+            await page.wait_for_load_state("networkidle")
 
             for index in range(len(linhas)):
                 botoes_analisar = await page.query_selector_all("i.fa-info-circle, button:has-text('Analisar')")
