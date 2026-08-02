@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="Analisador de Rotina PCPI",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded"  # Mantém a barra visível e com o botão de recolher ativo
+    initial_sidebar_state="expanded"
 )
 
 # -----------------------------------------------------------------------------
@@ -21,20 +21,18 @@ st.set_page_config(
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA E OTIMIZADA
+# BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configurações")
     
-    # Status da IA compacto
     if gemini_api_key:
         st.caption("✅ **IA:** API Key Ativa (Secrets)")
     else:
         st.caption("❌ **IA:** API Key Ausente nos Secrets")
 
-    st.write("") # Espaçamento leve
+    st.write("")
 
-    # Credenciais SGDE em colunas (Lado a Lado)
     st.subheader("🔐 Acesso SGDE")
     col_usr, col_pwd = st.columns(2)
     with col_usr:
@@ -42,7 +40,6 @@ with st.sidebar:
     with col_pwd:
         senha_sgde = st.text_input("Senha", type="password")
 
-    # Filtros em formato enxuto
     st.subheader("🔍 Filtros")
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
@@ -58,14 +55,25 @@ with st.sidebar:
         ]
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
 
-# VARIÁVEL ESSENCIAL RESTAURADA
 empresa_sgde = "SED.MS"
 
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
 # -----------------------------------------------------------------------------
 st.title("🤖 Analisador de Rotinas PCPI - SGDE")
-st.write("Pesquise as rotinas disponíveis no SGDE e selecione qual deseja analisar.")
+st.write("Pesquise as rotinas disponíveis no SGDE e clique em **Ver Rotina** para visualizar o relatório detalhado.")
+
+# -----------------------------------------------------------------------------
+# ESTADOS DA SESSÃO (PERSISTÊNCIA DE DADOS NA TELA)
+# -----------------------------------------------------------------------------
+if "rotinas_carregadas" not in st.session_state:
+    st.session_state.rotinas_carregadas = None
+
+if "detalhe_rotina" not in st.session_state:
+    st.session_state.detalhe_rotina = None
+
+if "rotina_selecionada_info" not in st.session_state:
+    st.session_state.rotina_selecionada_info = None
 
 # -----------------------------------------------------------------------------
 # ETAPA 1: APENAS LISTAR AS ROTINAS
@@ -134,8 +142,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                     "Index": index,
                     "Unidade Escolar": escola,
                     "Servidor": servidor,
-                    "Situação": situacao,
-                    "Rótulo": f"{servidor} - {escola} ({situacao})"
+                    "Situação": situacao
                 })
 
             await browser.close()
@@ -195,7 +202,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             
             if index_escolhido < len(linhas):
-                log_container.write(f"📖 Clicando no ícone (i) da rotina #{index_escolhido + 1}...")
+                log_container.write(f"📖 Clicando na rotina #{index_escolhido + 1}...")
                 linha_alvo = linhas[index_escolhido]
                 
                 icone_info = await linha_alvo.query_selector("i, a, .ui-grid-cell-contents")
@@ -204,7 +211,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                 else:
                     await linha_alvo.click()
 
-                log_container.write("⏳ Extraindo dados do relatório...")
+                log_container.write("⏳ Extraindo conteúdo detalhado...")
                 await page.wait_for_timeout(3000)
 
                 texto_completo = await target_frame.inner_text("body")
@@ -220,41 +227,15 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# FUNÇÃO GEMINI
+# BOTÃO DE BUSCA
 # -----------------------------------------------------------------------------
-def analisar_com_gemini(api_key, conteudo_rotina):
-    client = genai.Client(api_key=api_key)
-    system_instruction = """
-    Você é um avaliador pedagógico especializado em analisar rotinas de PCPI do PROGETEC.
-    Analise o texto fornecido e estruture o parecer em:
-    1. Pontos Fortes
-    2. Fragilidades / Pontos de Atenção
-    3. Sugestão de Parecer Pedagógico Final
-    """
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=f"Analise a seguinte rotina do SGDE:\n\n{conteudo_rotina}",
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.2,
-        )
-    )
-    return response.text
-
-# -----------------------------------------------------------------------------
-# CORPO DA APLICAÇÃO
-# -----------------------------------------------------------------------------
-st.markdown("---")
-
-if "rotinas_carregadas" not in st.session_state:
-    st.session_state.rotinas_carregadas = None
-
-# Botão principal de Busca
-if st.button("🔍 1. Buscar Lista de Rotinas no SGDE", type="primary", use_container_width=True):
+if st.button("🔍 Buscar Lista de Rotinas no SGDE", type="primary", use_container_width=True):
     if not senha_sgde:
         st.error("Por favor, informe a senha do SGDE na barra lateral.")
     else:
-        status_box = st.status("Pesquisando rotinas no SGDE...", expanded=True)
+        st.session_state.detalhe_rotina = None
+        st.session_state.rotina_selecionada_info = None
+        status_box = st.status("Pesquisando rotinas...", expanded=True)
         try:
             lista = asyncio.run(
                 buscar_lista_rotinas(
@@ -268,39 +249,65 @@ if st.button("🔍 1. Buscar Lista de Rotinas no SGDE", type="primary", use_cont
             status_box.update(label="Falha na busca.", state="error", expanded=True)
             st.error(f"Erro: {err}")
 
-# Exibição dos Resultados e Seleção
+# -----------------------------------------------------------------------------
+# EXIBIÇÃO DA TABELA COM BOTÕES POR LINHA
+# -----------------------------------------------------------------------------
 if st.session_state.rotinas_carregadas:
-    st.success(f"Foram encontradas {len(st.session_state.rotinas_carregadas)} rotinas!")
-    
-    df_exibicao = pd.DataFrame(st.session_state.rotinas_carregadas)[["Unidade Escolar", "Servidor", "Situação"]]
-    st.dataframe(df_exibicao, use_container_width=True)
+    st.markdown("---")
+    st.subheader(f"📋 Rotinas Encontradas ({len(st.session_state.rotinas_carregadas)})")
+
+    # Cabeçalho da Tabela
+    col_esc, col_serv, col_sit, col_act = st.columns([3, 3, 2, 2])
+    col_esc.markdown("**Unidade Escolar**")
+    col_serv.markdown("**Servidor / PROGETEC**")
+    col_sit.markdown("**Situação**")
+    col_act.markdown("**Ação**")
 
     st.markdown("---")
-    st.subheader("🎯 Seleção de Rotina")
-    opcoes = {r["Rótulo"]: r["Index"] for r in st.session_state.rotinas_carregadas}
-    rotina_escolhida = st.selectbox("Escolha a rotina que deseja analisar:", list(opcoes.keys()))
 
-    if st.button("🚀 2. Processar Análise Pedagógica da Rotina Selecionada", use_container_width=True):
-        if not gemini_api_key:
-            st.error("Gemini API Key não está configurada nos Secrets do Streamlit.")
-        else:
-            status_box_analise = st.status("Extraindo dados e gerando parecer...", expanded=True)
+    # Linhas com Botão de Ação
+    for rotina in st.session_state.rotinas_carregadas:
+        c1, c2, c3, c4 = st.columns([3, 3, 2, 2])
+        c1.write(rotina["Unidade Escolar"])
+        c2.write(rotina["Servidor"])
+        c3.write(rotina["Situação"])
+        
+        # Botão individual para cada rotina
+        if c4.button(f"👁️ Ver Rotina", key=f"btn_{rotina['Index']}"):
+            st.session_state.rotina_selecionada_info = rotina
+            status_extracao = st.status(f"Carregando detalhes de {rotina['Servidor']}...", expanded=True)
             try:
-                index_alvo = opcoes[rotina_escolhida]
-                texto_rotina = asyncio.run(
+                detalhes = asyncio.run(
                     extrair_rotina_especifica(
                         usuario_sgde, senha_sgde, empresa_sgde,
-                        assessor_nome, ano_ref, vigencia_ref, index_alvo, status_box_analise
+                        assessor_nome, ano_ref, vigencia_ref, rotina["Index"], status_extracao
                     )
                 )
-                status_box_analise.write("🧠 Gerando parecer pedagógico com Gemini...")
-                parecer = analisar_com_gemini(gemini_api_key, texto_rotina)
-                
-                status_box_analise.update(label="Análise concluída com sucesso!", state="complete", expanded=False)
-                st.markdown("---")
-                st.subheader(f"📄 Parecer: {rotina_escolhida}")
-                st.markdown(parecer)
-
+                st.session_state.detalhe_rotina = detalhes
+                status_extracao.update(label="Rotina carregada com sucesso!", state="complete", expanded=False)
+                st.rerun()
             except Exception as err:
-                status_box_analise.update(label="Falha ao processar a análise.", state="error", expanded=True)
+                status_extracao.update(label="Erro ao carregar rotina.", state="error", expanded=True)
                 st.error(f"Erro: {err}")
+
+# -----------------------------------------------------------------------------
+# AREA DE EXIBIÇÃO DA ROTINA DETALHADA (SEM IA)
+# -----------------------------------------------------------------------------
+if st.session_state.detalhe_rotina and st.session_state.rotina_selecionada_info:
+    info = st.session_state.rotina_selecionada_info
+    
+    st.markdown("---")
+    st.header(f"📄 Detalhamento da Rotina: {info['Servidor']}")
+    st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
+
+    # Exibe o conteúdo bruto capturado do SGDE de forma organizada na tela
+    with st.expander("📖 Clique para expandir/recolher o texto completo da Rotina", expanded=True):
+        st.text_area(
+            label="Conteúdo extraído do SGDE:",
+            value=st.session_state.detalhe_rotina,
+            height=400,
+            disabled=True
+        )
+
+    # Espaço reservado para o futuro botão da IA / Rubricas
+    st.info("💡 **Próximo passo:** Aqui colocaremos a integração com a IA e os parâmetros das rubricas para gerar o parecer automático!")
