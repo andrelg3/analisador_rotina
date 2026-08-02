@@ -6,8 +6,12 @@ from google import genai
 from google.genai import types
 from playwright.async_api import async_playwright
 
+# Garante a instalação do browser headless no servidor
 os.system("playwright install chromium")
 
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÃO DA PÁGINA STREAMLIT
+# -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Analisador de Rotina PCPI",
     page_icon="📚",
@@ -15,17 +19,17 @@ st.set_page_config(
 )
 
 st.title("🤖 Analisador de Rotinas PCPI - SGDE")
-st.write("Pesquise as rotinas, escolha qual PROGETEC/Escola deseja analisar e gere o parecer.")
+st.write("Pesquise e selecione a rotina do PROGETEC para realizar a análise pedagógica automatizada.")
 
 # -----------------------------------------------------------------------------
 # BARRA LATERAL (CONFIGURAÇÕES DA IA)
 # -----------------------------------------------------------------------------
 with st.sidebar:
     st.header("🔑 Configurações da IA")
-    gemini_api_key = st.text_input("Gemini API Key", type="password")
+    gemini_api_key = st.text_input("Gemini API Key", type="password", help="Cole sua chave de API gerada no Google AI Studio")
 
 # -----------------------------------------------------------------------------
-# FORMULÁRIO PRINCIPAL
+# FORMULÁRIO PRINCIPAL DE PESQUISA
 # -----------------------------------------------------------------------------
 col1, col2 = st.columns(2)
 
@@ -53,7 +57,7 @@ with col2:
 empresa_sgde = "SED.MS"
 
 # -----------------------------------------------------------------------------
-# ETAPA 1: APENAS LISTAR AS ROTINAS
+# ETAPA 1: BUSCAR E LISTAR ROTINAS
 # -----------------------------------------------------------------------------
 async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia, log_container):
     async with async_playwright() as p:
@@ -81,7 +85,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                         target_frame = frame
                         break
 
-            log_container.write("🔍 Aplicando filtros...")
+            log_container.write("🔍 Aplicando filtros na pesquisa...")
             simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
             await simular_box.click()
             await target_frame.fill(".select2-search input.select2-input:visible", assessor)
@@ -96,7 +100,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                 await dropdowns[4].click()
                 await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
 
-            log_container.write("🚀 Pesquisando...")
+            log_container.write("🚀 Disparando busca...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
             await page.wait_for_timeout(2000)
@@ -104,13 +108,15 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
-            log_container.write(f"📋 Mapeando {len(linhas)} rotina(s)...")
+            log_container.write(f"📋 Extraindo a lista de {len(linhas)} rotina(s)...")
 
             lista_rotinas = []
             for index, linha in enumerate(linhas):
                 texto_linha = await linha.inner_text()
+                # Limpa e divide o texto da linha em colunas
                 colunas = [col.strip() for col in texto_linha.split('\n') if col.strip()]
                 
+                # Monta a identificação amigável para o Assessor escolher
                 escola = colunas[1] if len(colunas) > 1 else "Escola N/I"
                 servidor = colunas[2] if len(colunas) > 2 else f"Servidor #{index+1}"
                 situacao = colunas[5] if len(colunas) > 5 else "N/I"
@@ -131,7 +137,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             raise Exception(f"Erro ao listar rotinas: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 2: EXTRAIR A ROTINA SELECIONADA
+# ETAPA 2: ABRIR E EXTRAIR A ROTINA SELECIONADA
 # -----------------------------------------------------------------------------
 async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vigencia, index_escolhido, log_container):
     async with async_playwright() as p:
@@ -140,7 +146,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         page = await context.new_page()
 
         try:
-            log_container.write("🔑 Acessando SGDE para abrir a rotina...")
+            log_container.write("🔑 Reconectando ao SGDE...")
             await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
@@ -183,15 +189,17 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                 log_container.write(f"📖 Clicando no ícone (i) da rotina #{index_escolhido + 1}...")
                 linha_alvo = linhas[index_escolhido]
                 
+                # Clica no ícone do 'i' (info) dentro da linha da UI-Grid
                 icone_info = await linha_alvo.query_selector("i, a, .ui-grid-cell-contents")
                 if icone_info:
                     await icone_info.click()
                 else:
                     await linha_alvo.click()
 
-                log_container.write("⏳ Extraindo dados do relatório...")
+                log_container.write("⏳ Aguardando os detalhes da rotina carregar...")
                 await page.wait_for_timeout(3000)
 
+                # Extrai o conteúdo da rotina
                 texto_completo = await target_frame.inner_text("body")
 
                 await browser.close()
@@ -202,23 +210,21 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 
         except Exception as e:
             await browser.close()
-            raise Exception(f"Erro ao extrair detalhes: {str(e)}")
+            raise Exception(f"Erro ao extrair detalhes da rotina: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# FUNÇÃO GEMINI COM MODELO ATUALIZADO
+# FUNÇÃO DE ANÁLISE COM GEMINI
 # -----------------------------------------------------------------------------
 def analisar_com_gemini(api_key, conteudo_rotina):
     client = genai.Client(api_key=api_key)
     system_instruction = """
-    Você é um avaliador pedagógico especializado em analisar rotinas de PCPI do PROGETEC.
-    Analise o texto fornecido e estruture o parecer em:
-    1. Pontos Fortes
-    2. Fragilidades / Pontos de Atenção
-    3. Sugestão de Parecer Pedagógico Final
+    Você é um avaliador pedagógico especializado em analisar rotinas de PCPI.
+    Analise o texto da rotina fornecido com base nas rubricas institucionais.
+    Classifique os pontos fortes, fragilidades e emita uma sugestão de parecer estruturado.
     """
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=f"Analise a seguinte rotina do SGDE:\n\n{conteudo_rotina}",
+        model="gemini-2.5-flash",
+        contents=f"Analise a seguinte rotina extraída do SGDE:\n\n{conteudo_rotina}",
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
             temperature=0.2,
@@ -227,18 +233,19 @@ def analisar_com_gemini(api_key, conteudo_rotina):
     return response.text
 
 # -----------------------------------------------------------------------------
-# TELA PRINCIPAL
+# CONTROLE DE ESTADO DA INTERFACE
 # -----------------------------------------------------------------------------
 st.write("---")
 
 if "rotinas_carregadas" not in st.session_state:
     st.session_state.rotinas_carregadas = None
 
+# Botão para listar rotinas
 if st.button("🔍 1. Buscar Lista de Rotinas", type="primary", use_container_width=True):
     if not senha_sgde:
-        st.error("Por favor, informe a senha do SGDE.")
+        st.error("Por favor, preencha sua senha do SGDE.")
     else:
-        status_box = st.status("Pesquisando rotinas...", expanded=True)
+        status_box = st.status("Pesquisando rotinas no SGDE...", expanded=True)
         try:
             lista = asyncio.run(
                 buscar_lista_rotinas(
@@ -247,14 +254,16 @@ if st.button("🔍 1. Buscar Lista de Rotinas", type="primary", use_container_wi
                 )
             )
             st.session_state.rotinas_carregadas = lista
-            status_box.update(label=f"Sucesso! {len(lista)} rotina(s) encontrada(s).", state="complete", expanded=False)
+            status_box.update(label=f"Sucesso! {len(lista)} rotina(s) localizada(s).", state="complete", expanded=False)
         except Exception as err:
             status_box.update(label="Falha na busca.", state="error", expanded=True)
             st.error(f"Erro: {err}")
 
+# Exibe a lista e opção de escolha se houver rotinas carregadas
 if st.session_state.rotinas_carregadas:
     st.success(f"Foram encontradas {len(st.session_state.rotinas_carregadas)} rotinas!")
     
+    # Exibe a tabela amigável no Streamlit
     df_exibicao = pd.DataFrame(st.session_state.rotinas_carregadas)[["Unidade Escolar", "Servidor", "Situação"]]
     st.dataframe(df_exibicao, use_container_width=True)
 
@@ -264,9 +273,9 @@ if st.session_state.rotinas_carregadas:
 
     if st.button("🚀 2. Processar Análise Pedagógica da Rotina Selecionada", use_container_width=True):
         if not gemini_api_key:
-            st.error("Por favor, preencha a Gemini API Key na barra lateral.")
+            st.error("Por favor, informe sua Gemini API Key na barra lateral esquerda.")
         else:
-            status_box_analise = st.status("Extraindo dados e gerando parecer...", expanded=True)
+            status_box_analise = st.status("Abrindo rotina e gerando parecer...", expanded=True)
             try:
                 index_alvo = opcoes[rotina_escolhida]
                 texto_rotina = asyncio.run(
@@ -275,14 +284,14 @@ if st.session_state.rotinas_carregadas:
                         assessor_nome, ano_ref, vigencia_ref, index_alvo, status_box_analise
                     )
                 )
-                status_box_analise.write("🧠 Gerando parecer pedagógico com Gemini...")
+                status_box_analise.write("🧠 Enviando conteúdo para a IA Gemini...")
                 parecer = analisar_com_gemini(gemini_api_key, texto_rotina)
                 
-                status_box_analise.update(label="Análise concluída!", state="complete", expanded=False)
+                status_box_analise.update(label="Análise concluída com sucesso!", state="complete", expanded=False)
                 st.markdown("---")
-                st.subheader(f"📄 Parecer: {rotina_escolhida}")
+                st.subheader(f"📄 Parecer da IA - {rotina_escolhida}")
                 st.markdown(parecer)
 
             except Exception as err:
-                status_box_analise.update(label="Falha ao processar.", state="error", expanded=True)
+                status_box_analise.update(label="Falha no processamento.", state="error", expanded=True)
                 st.error(f"Erro: {err}")
