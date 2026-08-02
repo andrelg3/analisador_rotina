@@ -18,99 +18,117 @@ st.set_page_config(
 )
 
 st.title("🤖 Analisador de Rotinas PCPI - SGDE")
-st.write("Selecione os parâmetros abaixo para buscar e analisar as rotinas diretamente do SGDE.")
+st.write("Preencha as informações abaixo para que o sistema busque e analise as rotinas automaticamente.")
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL (ENTRADAS DE DADOS E CHAVE DE API)
+# BARRA LATERAL (APENAS A CHAVE DA API)
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("🔑 Autenticação e Configurações")
-    
-    # Chave de API do Gemini (AI Studio)
-    gemini_api_key = st.text_input("Gemini API Key", type="password", help="Chave gerada no Google AI Studio")
-    
-    st.divider()
-    st.subheader("Acesso ao SGDE")
-    usuario_sgde = st.text_input("Usuário SGDE", value="agoulart")
-    senha_sgde = st.text_input("Senha SGDE", type="password")
-    empresa_sgde = st.selectbox("Empresa/Domínio", ["SED.MS"])
-    
-    st.divider()
-    st.subheader("Filtros da Busca")
-    assessor_nome = st.text_input("Simular Acesso (Assessor)", value="ANDRE LUIS GOULART")
-    ano_ref = st.selectbox("Ano de Referência", ["2026", "2025"])
-    
-    meses_opcoes = [
-        "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
-        "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
-        "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
-        "11 - NOVEMBRO", "12 - DEZEMBRO"
-    ]
-    vigencia_ref = st.selectbox("Vigência (Mês)", meses_opcoes)
+    st.header("🔑 Configurações da IA")
+    gemini_api_key = st.text_input("Gemini API Key", type="password", help="Cole sua chave de API gerada no Google AI Studio")
 
 # -----------------------------------------------------------------------------
-# FUNÇÃO DE AUTOMAÇÃO COM PLAYWRIGHT (ROBÔ SGDE)
+# FORMULÁRIO PRINCIPAL NO CORPO DA PÁGINA (LAYOUT EM COLUNAS)
 # -----------------------------------------------------------------------------
-async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia):
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("🔐 Credenciais SGDE")
+    usuario_sgde = st.text_input("Usuário SGDE", value="agoulart")
+    senha_sgde = st.text_input("Senha SGDE", type="password")
+
+with col2:
+    st.subheader("🔍 Filtros de Pesquisa")
+    assessor_nome = st.text_input("Simular Acesso (Assessor)", value="ANDRE LUIS GOULART")
+    
+    col_ano, col_vigencia = st.columns(2)
+    with col_ano:
+        ano_ref = st.selectbox("Ano de Referência", ["2026", "2025"])
+    with col_vigencia:
+        meses_opcoes = [
+            "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
+            "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
+            "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
+            "11 - NOVEMBRO", "12 - DEZEMBRO"
+        ]
+        vigencia_ref = st.selectbox("Vigência (Mês)", meses_opcoes)
+
+empresa_sgde = "SED.MS"  # Domínio fixo interno
+
+# -----------------------------------------------------------------------------
+# FUNÇÃO DE AUTOMAÇÃO COM LOGS PASSO A PASSO
+# -----------------------------------------------------------------------------
+async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia, log_container):
     async with async_playwright() as p:
+        log_container.write("🌐 1. Iniciando navegador em segundo plano...")
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
         page = await context.new_page()
 
         try:
-            # 1. Login no SGDE
+            log_container.write("🔑 2. Acessando tela de Login do SGDE...")
             await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
+
+            log_container.write("✏️ 3. Preenchendo dados de autenticação...")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
             await page.click("#btnLogar")
+
+            log_container.write("⏳ 4. Aguardando processamento do Login...")
             await page.wait_for_load_state("networkidle")
+            log_container.write(f"✅ Login concluído! URL atual: `{page.url}`")
 
-            # 2. Navegação até a página de rotina via URL e aguardando redirecionamentos
+            log_container.write("📍 5. Navegando para a URL de Análise de Rotina...")
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
-            await page.wait_for_timeout(3000) # Aguarda 3 segundos para inicialização dos scripts AngularJS
+            await page.wait_for_timeout(3000)
 
-            # Identifica se o formulário está no contexto principal ou em um iframe
+            # Verifica se a navegação foi redirecionada
+            log_container.write(f"ℹ️ URL após navegação: `{page.url}`")
+
             target_frame = page
             if len(page.frames) > 1:
-                # Se houver iframes na página, busca o frame do formulário
+                log_container.write(f"🖥️ Detectado(s) {len(page.frames)} frames na página.")
                 for frame in page.frames:
                     if "rotina" in frame.url or "progetec" in frame.url:
                         target_frame = frame
+                        log_container.write(f"🎯 Frame direcionado: `{frame.url}`")
                         break
 
-            # 3. SELEÇÃO DO ASSESSOR (Simular Acesso - multiplicadorNte)
-            # Aguarda a tag pai que você confirmou na imagem
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=30000)
+            log_container.write("🔍 6. Aguardando campo 'Simular Acesso' (multiplicadorNte)...")
+            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=15000)
+            
+            log_container.write("👆 7. Selecionando Assessor...")
             await simular_box.click()
-
-            # Preenche o campo de busca que se abre no Select2
             await target_frame.fill(".select2-search input.select2-input:visible", assessor)
             await target_frame.click(f".select2-result-label:has-text('{assessor}')")
 
-            # 4. SELEÇÃO DO ANO DE REFERÊNCIA
+            log_container.write("📅 8. Selecionando Ano de Referência...")
             dropdowns = await target_frame.query_selector_all("a.select2-choice")
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
                 await target_frame.click(f".select2-result-label:has-text('{ano}')")
 
-            # 5. SELEÇÃO DA VIGÊNCIA (Mês)
+            log_container.write("🗓️ 9. Selecionando Vigência...")
             if len(dropdowns) >= 5:
                 await dropdowns[4].click()
                 await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
 
-            # 6. BOTÃO PESQUISAR
+            log_container.write("🚀 10. Clicando em Pesquisar...")
             await target_frame.click("input[ng-click='pesquisar()']")
-            await target_frame.wait_for_selector("tbody tr", timeout=20000)
 
-            # 7. CAPTURA E EXTRAÇÃO DAS ROTINAS
+            log_container.write("⏳ 11. Aguardando tabela de resultados...")
+            await target_frame.wait_for_selector("tbody tr", timeout=15000)
+
             linhas = await target_frame.query_selector_all("tbody tr")
+            log_container.write(f"📋 12. Tabela carregada com {len(linhas)} linha(s) encontrada(s).")
+            
             rotinas_encontradas = []
-
             for index in range(len(linhas)):
                 botoes_analisar = await target_frame.query_selector_all("i.fa-info-circle, button:has-text('Analisar'), a[title='Analisar']")
                 
                 if index < len(botoes_analisar):
+                    log_container.write(f"📖 Lendo detalhes da rotina #{index + 1}...")
                     await botoes_analisar[index].click()
                     await target_frame.wait_for_selector("text=Detalhes da Rotina", timeout=10000)
 
@@ -156,35 +174,33 @@ def analisar_com_gemini(api_key, conteudo_rotina):
     return response.text
 
 # -----------------------------------------------------------------------------
-# EXECUÇÃO DA INTERFACE
+# EXECUÇÃO DO PROCESSO
 # -----------------------------------------------------------------------------
-if st.button("🚀 Buscar Rotinas e Processar Análise", type="primary"):
+st.write("---")
+if st.button("🚀 Buscar Rotinas e Processar Análise", type="primary", use_container_width=True):
     if not gemini_api_key:
-        st.error("Por favor, preencha a sua Gemini API Key na barra lateral.")
+        st.error("Por favor, preencha a sua Gemini API Key na barra lateral esquerda.")
     elif not senha_sgde:
-        st.error("Por favor, preencha a sua senha do SGDE na barra lateral.")
+        st.error("Por favor, preencha a sua senha do SGDE.")
     else:
-        with st.status("Executando processo...", expanded=True) as status:
-            try:
-                st.write("1. Conectando ao SGDE e raspando as rotinas...")
-                rotinas = asyncio.run(
-                    extrair_rotinas_sgde(
-                        usuario_sgde, senha_sgde, empresa_sgde, 
-                        assessor_nome, ano_ref, vigencia_ref
-                    )
+        status_box = st.status("Processando busca e análise...", expanded=True)
+        try:
+            rotinas = asyncio.run(
+                extrair_rotinas_sgde(
+                    usuario_sgde, senha_sgde, empresa_sgde, 
+                    assessor_nome, ano_ref, vigencia_ref, status_box
                 )
-                
-                st.write(f"2. Sucesso! {len(rotinas)} rotina(s) localizada(s).")
-                st.write("3. Enviando conteúdo para análise no Gemini...")
+            )
+            
+            status_box.update(label=f"Concluído! {len(rotinas)} rotina(s) extraída(s) com sucesso.", state="complete", expanded=False)
 
-                for rotina in rotinas:
-                    st.markdown("---")
-                    st.subheader(f"📄 Rotina #{rotina['id']}")
+            for rotina in rotinas:
+                st.markdown("---")
+                st.subheader(f"📄 Análise da Rotina #{rotina['id']}")
+                with st.spinner("Gerando parecer pedagógico com Gemini..."):
                     analise_ia = analisar_com_gemini(gemini_api_key, rotina["texto_rotina"])
                     st.markdown(analise_ia)
 
-                status.update(label="Análise concluída com sucesso!", state="complete", expanded=False)
-
-            except Exception as err:
-                status.update(label="Ocorreu uma falha no processo.", state="error")
-                st.error(f"Erro: {err}")
+        except Exception as err:
+            status_box.update(label="Falha durante o processo.", state="error", expanded=True)
+            st.error(f"Detalhes do erro: {err}")
