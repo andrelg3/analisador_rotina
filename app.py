@@ -12,7 +12,7 @@ os.system("playwright install chromium")
 
 st.set_page_config(
     page_title="Analisador de Rotina PCPI",
-    page_icon="📚",
+    page_icon="📋",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -38,7 +38,7 @@ if "rotina_selecionada_info" not in st.session_state:
 # BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Google Gemini")
+    st.header("🧠 Google Gemini")
     
     if gemini_api_key:
         st.caption("✅ **IA:** API Key Ativa (Secrets)")
