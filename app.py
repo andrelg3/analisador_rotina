@@ -11,7 +11,8 @@ os.system("playwright install chromium")
 st.set_page_config(
     page_title="Analisador de Rotina PCPI",
     page_icon="📚",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"  # Mantém a barra visível e com o botão de recolher ativo
 )
 
 # -----------------------------------------------------------------------------
@@ -46,6 +47,8 @@ with st.sidebar:
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
     col_ano, col_mes = st.columns(2)
+    with col_ano:
+        ano_ref = st.selectbox("Ano", ["2026", "2025"])
     with col_mes:
         meses_opcoes = [
             "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
@@ -54,9 +57,9 @@ with st.sidebar:
             "11 - NOVEMBRO", "12 - DEZEMBRO"
         ]
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
-    with col_ano:
-        ano_ref = st.selectbox("Ano", ["2026", "2025"])
-        empresa_sgde = "SED.MS"
+
+# VARIÁVEL ESSENCIAL RESTAURADA
+empresa_sgde = "SED.MS"
 
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
