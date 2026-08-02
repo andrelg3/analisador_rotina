@@ -22,7 +22,7 @@ st.set_page_config(
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # -----------------------------------------------------------------------------
-# ESTADOS DA SESSÃO (PERSISTÊNCIA DE DADOS)
+# ESTADOS DA SESSÃO
 # -----------------------------------------------------------------------------
 if "rotinas_carregadas" not in st.session_state:
     st.session_state.rotinas_carregadas = None
@@ -56,7 +56,6 @@ with st.sidebar:
     st.subheader("🔍 Filtros")
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
-    # Invertido: Mês primeiro, Ano depois
     col_mes, col_ano = st.columns(2)
     with col_mes:
         meses_opcoes = [
@@ -70,8 +69,6 @@ with st.sidebar:
         ano_ref = st.selectbox("Ano", ["2026", "2025"])
 
     st.write("")
-    
-    # Botão de Busca movido para a Sidebar
     btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
 
 empresa_sgde = "SED.MS"
@@ -160,7 +157,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             raise Exception(f"Erro ao listar rotinas: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 2: EXTRAIR A ROTINA SELECIONADA
+# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (CLIQUE PRECISO NO BOTÃO ANALISAR)
 # -----------------------------------------------------------------------------
 async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vigencia, index_escolhido, log_container):
     async with async_playwright() as p:
@@ -169,7 +166,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         page = await context.new_page()
 
         try:
-            log_container.write("🔑 Acessando SGDE para abrir a rotina...")
+            log_container.write("🔑 Acessando SGDE...")
             await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
@@ -209,22 +206,37 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             
             if index_escolhido < len(linhas):
-                log_container.write(f"📖 Clicando na rotina #{index_escolhido + 1}...")
+                log_container.write(f"🎯 Localizando o botão Analisar na rotina #{index_escolhido + 1}...")
                 linha_alvo = linhas[index_escolhido]
                 
-                icone_info = await linha_alvo.query_selector("i, a, .ui-grid-cell-contents")
-                if icone_info:
-                    await icone_info.click()
+                # Busca exata do botão 'Analisar' baseado no parâmetro informado
+                botao_analisar = await linha_alvo.query_selector("input[title='Analisar'], input[ng-click*='analisar']")
+                
+                if botao_analisar:
+                    log_container.write("👆 Clicando no botão Analisar...")
+                    await botao_analisar.click()
                 else:
+                    log_container.write("⚠️ Botão específico não encontrado. Tentando clique direto na célula...")
                     await linha_alvo.click()
 
-                log_container.write("⏳ Extraindo conteúdo detalhado...")
-                await page.wait_for_timeout(3000)
+                log_container.write("⏳ Aguardando abertura do formulário da rotina...")
+                await page.wait_for_timeout(4000)
 
-                texto_completo = await target_frame.inner_text("body")
+                # Se houver carregamento por trás (backdrop/spinner), aguarda sumir
+                try:
+                    await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=10000)
+                except:
+                    pass
+
+                log_container.write("📖 Extraindo conteúdo do relatório...")
+                texto_bruto = await target_frame.inner_text("body")
+
+                # Tratamento simples para organizar a saída do texto
+                linhas_limpas = [linha.strip() for linha in texto_bruto.split("\n") if linha.strip()]
+                texto_organizado = "\n".join(linhas_limpas)
 
                 await browser.close()
-                return texto_completo
+                return texto_organizado
 
             await browser.close()
             raise Exception("Linha da rotina não encontrada.")
@@ -263,7 +275,6 @@ if st.session_state.rotinas_carregadas:
     st.markdown("---")
     st.subheader(f"📋 Rotinas Encontradas ({len(st.session_state.rotinas_carregadas)})")
 
-    # Cabeçalho da Tabela
     col_esc, col_serv, col_sit, col_act = st.columns([3, 3, 2, 2])
     col_esc.markdown("**Unidade Escolar**")
     col_serv.markdown("**Servidor / PROGETEC**")
@@ -272,7 +283,6 @@ if st.session_state.rotinas_carregadas:
 
     st.markdown("---")
 
-    # Linhas com Botão de Ação
     for rotina in st.session_state.rotinas_carregadas:
         c1, c2, c3, c4 = st.columns([3, 3, 2, 2])
         c1.write(rotina["Unidade Escolar"])
@@ -304,7 +314,6 @@ if st.session_state.detalhe_rotina and st.session_state.rotina_selecionada_info:
     
     st.markdown("---")
     
-    # Marcador HTML para o Auto-Scroll
     st.markdown("<div id='secao-detalhamento'></div>", unsafe_allow_html=True)
     
     st.header(f"📄 Detalhamento da Rotina: {info['Servidor']}")
@@ -320,7 +329,6 @@ if st.session_state.detalhe_rotina and st.session_state.rotina_selecionada_info:
 
     st.info("💡 **Próximo passo:** Aqui colocaremos a integração com a IA e os parâmetros das rubricas para gerar o parecer automático!")
 
-    # Script JS para rolar a tela automaticamente até o detalhamento
     components.html(
         """
         <script>
