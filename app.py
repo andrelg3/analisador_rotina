@@ -77,72 +77,71 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia,
 
             log_container.write("⏳ 4. Aguardando processamento do Login...")
             await page.wait_for_load_state("networkidle")
-            log_container.write(f"✅ Login concluído! URL atual: `{page.url}`")
 
             log_container.write("📍 5. Navegando para a URL de Análise de Rotina...")
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
 
-            # Verifica se a navegação foi redirecionada
-            log_container.write(f"ℹ️ URL após navegação: `{page.url}`")
-
             target_frame = page
             if len(page.frames) > 1:
-                log_container.write(f"🖥️ Detectado(s) {len(page.frames)} frames na página.")
                 for frame in page.frames:
                     if "rotina" in frame.url or "progetec" in frame.url:
                         target_frame = frame
-                        log_container.write(f"🎯 Frame direcionado: `{frame.url}`")
                         break
 
-            log_container.write("🔍 6. Aguardando campo 'Simular Acesso' (multiplicadorNte)...")
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=15000)
-            
-            log_container.write("👆 7. Selecionando Assessor...")
+            log_container.write("🔍 6. Selecionando Assessor (Simular Acesso)...")
+            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
             await simular_box.click()
             await target_frame.fill(".select2-search input.select2-input:visible", assessor)
             await target_frame.click(f".select2-result-label:has-text('{assessor}')")
 
-            log_container.write("📅 8. Selecionando Ano de Referência...")
+            log_container.write("📅 7. Selecionando Ano de Referência...")
             dropdowns = await target_frame.query_selector_all("a.select2-choice")
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
                 await target_frame.click(f".select2-result-label:has-text('{ano}')")
 
-            log_container.write("🗓️ 9. Selecionando Vigência...")
+            log_container.write("🗓️ 8. Selecionando Vigência...")
             if len(dropdowns) >= 5:
                 await dropdowns[4].click()
                 await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
 
-            log_container.write("🚀 10. Clicando em Pesquisar...")
+            log_container.write("🚀 9. Clicando no botão Pesquisar...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
-            log_container.write("⏳ 11. Aguardando tabela de resultados...")
-            await target_frame.wait_for_selector("tbody tr", timeout=15000)
+            # Aguarda o indicador de carregamento do AngularJS sumir
+            await page.wait_for_timeout(2000)
+            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
 
-            linhas = await target_frame.query_selector_all("tbody tr")
-            log_container.write(f"📋 12. Tabela carregada com {len(linhas)} linha(s) encontrada(s).")
+            log_container.write("⏳ 10. Aguardando os resultados na UI-Grid...")
+            # Espera o container de resultados do UI-Grid aparecer
+            await target_frame.wait_for_selector(".ui-grid-row, div[ui-grid='dados.grid']", timeout=20000)
+
+            linhas = await target_frame.query_selector_all(".ui-grid-row")
+            log_container.write(f"📋 11. Sucesso! {len(linhas)} rotina(s) encontrada(s) no UI-Grid.")
             
             rotinas_encontradas = []
             for index in range(len(linhas)):
-                botoes_analisar = await target_frame.query_selector_all("i.fa-info-circle, button:has-text('Analisar'), a[title='Analisar']")
+                # Busca o ícone/botão de ação dentro da linha do UI-Grid
+                botoes_analisar = await target_frame.query_selector_all(".ui-grid-row i.fa-info-circle, .ui-grid-row button, .ui-grid-row a")
                 
                 if index < len(botoes_analisar):
-                    log_container.write(f"📖 Lendo detalhes da rotina #{index + 1}...")
+                    log_container.write(f"📖 Extraindo conteúdo da rotina #{index + 1}...")
                     await botoes_analisar[index].click()
-                    await target_frame.wait_for_selector("text=Detalhes da Rotina", timeout=10000)
+                    await target_frame.wait_for_selector("text=Detalhes da Rotina", timeout=15000)
 
                     dados_cabecalho = await target_frame.inner_text("div.dados-rotina, div:has-text('Servidor')")
-                    tabela_detalhes = await target_frame.inner_text("table")
+                    texto_completo = await target_frame.inner_text("fieldset, .conteudo, table")
 
                     rotinas_encontradas.append({
                         "id": index + 1,
                         "cabecalho": dados_cabecalho,
-                        "texto_rotina": tabela_detalhes
+                        "texto_rotina": texto_completo
                     })
 
+                    # Botão para voltar à lista de resultados
                     await target_frame.click("text=/Analisar Rotina/i")
-                    await target_frame.wait_for_selector("tbody tr", timeout=10000)
+                    await target_frame.wait_for_selector(".ui-grid-row", timeout=10000)
 
             await browser.close()
             return rotinas_encontradas
