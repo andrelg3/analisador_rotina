@@ -84,11 +84,8 @@ st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique e
 # FUNÇÃO PARA EXTRAIR E FORMATAR O TEXTO BRUTO EM DATAFRAME
 # -----------------------------------------------------------------------------
 def processar_texto_rotina(texto_bruto):
-    # Regex para capturar padrões de data (DD/MM/AAAA) seguidos do turno e da descrição
-    # Padrão: 01/07/2026 \t Matutino \t Descrição...
     padrao = r'(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)'
     
-    # Recorta o bloco entre "DESCRIÇÃO DA ROTINA" e "Parecer"
     inicio = texto_bruto.find("DESCRIÇÃO DA ROTINA")
     fim = texto_bruto.find("Parecer", inicio if inicio != -1 else 0)
     
@@ -98,7 +95,6 @@ def processar_texto_rotina(texto_bruto):
     matches = re.findall(padrao, bloco_util, re.DOTALL)
     
     for data, turno, descricao in matches:
-        # Limpa espaços e quebras de linha desnecessárias
         desc_limpa = " ".join(descricao.split())
         registros.append({
             "Data": data,
@@ -287,7 +283,7 @@ if btn_buscar:
             st.error(f"Erro: {err}")
 
 # -----------------------------------------------------------------------------
-# EXIBIÇÃO DA TABELA COM BOTÕES POR LINHA
+# EXIBIÇÃO DA TABELA PRINCIPAL DE BUSCA
 # -----------------------------------------------------------------------------
 if st.session_state.rotinas_carregadas:
     st.markdown("---")
@@ -317,7 +313,6 @@ if st.session_state.rotinas_carregadas:
                         assessor_nome, ano_ref, vigencia_ref, rotina["Index"], status_extracao
                     )
                 )
-                # Processa e converte para Tabela Nítida
                 df_formatado = processar_texto_rotina(texto_bruto)
                 st.session_state.df_rotina_detalhada = df_formatado
                 
@@ -328,7 +323,7 @@ if st.session_state.rotinas_carregadas:
                 st.error(f"Erro: {err}")
 
 # -----------------------------------------------------------------------------
-# AREA DE EXIBIÇÃO DA ROTINA DETALHADA (COM QUEBRA AUTOMÁTICA DE LINHA E LARGURAS AJUSTADAS)
+# EXIBIÇÃO DA ROTINA DETALHADA (TABELA COM COLUNAS NATIVAS E LARGURAS PERFEITAS)
 # -----------------------------------------------------------------------------
 if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info:
     info = st.session_state.rotina_selecionada_info
@@ -341,75 +336,20 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
     st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
 
     if not df.empty:
-        # Estilização CSS personalizada para permitir Text Wrap e colunas proporcionais
-        estilo_tabela = """
-        <style>
-            .tabela-rotina {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-                font-family: Arial, sans-serif;
-            }
-            .tabela-rotina th {
-                background-color: #f0f2f6;
-                color: #31333F;
-                text-align: left;
-                padding: 12px;
-                border-bottom: 2px solid #e6e8eb;
-                font-weight: bold;
-            }
-            .tabela-rotina td {
-                padding: 12px;
-                border-bottom: 1px solid #e6e8eb;
-                vertical-align: top;
-                line-height: 1.5;
-                font-size: 14px;
-            }
-            .col-data {
-                width: 110px;
-                white-space: nowrap;
-                font-weight: 500;
-            }
-            .col-turno {
-                width: 110px;
-                white-space: nowrap;
-            }
-            .col-desc {
-                word-wrap: break-word;
-                white-space: normal;
-            }
-            .tabela-rotina tr:hover {
-                background-color: #f9f9f9;
-            }
-        </style>
-        """
+        # CABEÇALHO COM PROPORÇÃO [Data, Turno, Descrição]
+        h1, h2, h3 = st.columns([1.2, 1.2, 7.6])
+        h1.markdown("**Data**")
+        h2.markdown("**Turno**")
+        h3.markdown("**Descrição da Rotina**")
+        st.divider()
 
-        # Construção da tabela em HTML puro
-        html_tabela = estilo_tabela + '<table class="tabela-rotina">'
-        html_tabela += """
-            <thead>
-                <tr>
-                    <th class="col-data">Data</th>
-                    <th class="col-turno">Turno</th>
-                    <th class="col-desc">Descrição da Rotina</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-
-        for _, row in df.iterrows():
-            html_tabela += f"""
-                <tr>
-                    <td class="col-data">{row['Data']}</td>
-                    <td class="col-turno">{row['Turno']}</td>
-                    <td class="col-desc">{row['Descrição da Rotina']}</td>
-                </tr>
-            """
-
-        html_tabela += '</tbody></table>'
-
-        # Renderiza a tabela HTML nítida e responsiva
-        st.markdown(html_tabela, unsafe_allow_html=True)
+        # LINHAS COM QUEBRA AUTOMÁTICA DE TEXTO
+        for idx, row in df.iterrows():
+            c_data, c_turno, c_desc = st.columns([1.2, 1.2, 7.6])
+            c_data.markdown(f"**{row['Data']}**")
+            c_turno.write(row["Turno"])
+            c_desc.write(row["Descrição da Rotina"])
+            st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
     else:
         st.warning("Não foram encontradas linhas de rotina válidas no texto capturado.")
