@@ -103,7 +103,6 @@ async def processar_sgde_completo(usuario, senha, empresa, assessor, ano, vigenc
             rotinas_extraidas = []
 
             for index in range(len(linhas)):
-                # Atualiza os seletores das linhas atualizadas
                 linhas_atuais = await target_frame.query_selector_all(".ui-grid-row")
                 if index < len(linhas_atuais):
                     linha = linhas_atuais[index]
@@ -133,8 +132,8 @@ async def processar_sgde_completo(usuario, senha, empresa, assessor, ano, vigenc
                         "conteudo": conteudo
                     })
 
-                    # Clica no botão para voltar para a lista sem deslogar
-                    voltar_btn = await target_frame.query_selector("text=/Voltar/i, text=/Analisar Rotina/i, .btn-warning, .btn-default")
+                    # Botão para voltar ajustado sem usar regex problemático
+                    voltar_btn = await target_frame.query_selector("button:has-text('Voltar'), button:has-text('Analisar Rotina'), .btn-warning, .btn-default")
                     if voltar_btn:
                         await voltar_btn.click()
                         await target_frame.wait_for_selector(".ui-grid-row", timeout=10000)
@@ -146,12 +145,12 @@ async def processar_sgde_completo(usuario, senha, empresa, assessor, ano, vigenc
             await browser.close()
             raise Exception(f"Erro na automação do SGDE: {str(e)}")
 
-# FUNÇÃO GEMINI AJUSTADA (MODELO ATUALIZADO)
+# FUNÇÃO GEMINI AJUSTADA
 def analisar_com_gemini(api_key, servidor, escola, conteudo_rotina):
     client = genai.Client(api_key=api_key)
     system_instruction = """
     Você é um avaliador pedagógico especializado em analisar rotinas de PCPI do PROGETEC.
-    Faça uma análise rigorosa do texto da rotina com base nas diretrizes pedagógicas.
+    Faça uma análise rigorosa do texto da rotina fornecido com base nas diretrizes pedagógicas.
     Estruture a resposta com:
     1. Pontos Fortes
     2. Fragilidades / Pontos de Atenção
@@ -178,7 +177,6 @@ if st.button("🚀 Buscar e Analisar Todas as Rotinas", type="primary", use_cont
     else:
         status_box = st.status("Processando fluxo contínuo no SGDE...", expanded=True)
         try:
-            # Etapa 1: Navegação sem reconectar
             rotinas = asyncio.run(
                 processar_sgde_completo(
                     usuario_sgde, senha_sgde, empresa_sgde,
@@ -188,7 +186,6 @@ if st.button("🚀 Buscar e Analisar Todas as Rotinas", type="primary", use_cont
 
             status_box.update(label=f"Concluído com sucesso! {len(rotinas)} rotinas extraídas.", state="complete", expanded=False)
 
-            # Etapa 2: Exibição das análises geradas pela IA
             st.success("Análises pedagógicas geradas:")
             for r in rotinas:
                 with st.expander(f"📄 Parecer: {r['servidor']} - {r['escola']}", expanded=True):
