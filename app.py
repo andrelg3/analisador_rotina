@@ -66,47 +66,56 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
             await page.click("#btnLogar")
             await page.wait_for_load_state("networkidle")
 
-            # 2. Navegação até a página de rotina
-            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="networkidle")
-            
-            # Aguarda o elemento do formulário do AngularJS carregar com timeout maior
-            seletor_assessor = "div[name='multiplicadorNte'], .ui-select-container"
-            await page.wait_for_selector(seletor_assessor, state="visible", timeout=30000)
-            await page.wait_for_timeout(2000) # Pausa de 2s para estabilizar o JS
+            # 2. Navegação até a página de rotina via URL e aguardando redirecionamentos
+            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000) # Aguarda 3 segundos para inicialização dos scripts AngularJS
 
-            # 3. SELEÇÃO DO ASSESSOR (Simular Acesso)
-            await page.click("div[name='multiplicadorNte'] a.select2-choice, .ui-select-container a.select2-choice")
-            await page.fill(".select2-search input.select2-input:visible", assessor)
-            await page.click(f".select2-result-label:has-text('{assessor}')")
+            # Identifica se o formulário está no contexto principal ou em um iframe
+            target_frame = page
+            if len(page.frames) > 1:
+                # Se houver iframes na página, busca o frame do formulário
+                for frame in page.frames:
+                    if "rotina" in frame.url or "progetec" in frame.url:
+                        target_frame = frame
+                        break
+
+            # 3. SELEÇÃO DO ASSESSOR (Simular Acesso - multiplicadorNte)
+            # Aguarda a tag pai que você confirmou na imagem
+            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=30000)
+            await simular_box.click()
+
+            # Preenche o campo de busca que se abre no Select2
+            await target_frame.fill(".select2-search input.select2-input:visible", assessor)
+            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
 
             # 4. SELEÇÃO DO ANO DE REFERÊNCIA
-            dropdowns = await page.query_selector_all("a.select2-choice")
+            dropdowns = await target_frame.query_selector_all("a.select2-choice")
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
-                await page.click(f".select2-result-label:has-text('{ano}')")
+                await target_frame.click(f".select2-result-label:has-text('{ano}')")
 
             # 5. SELEÇÃO DA VIGÊNCIA (Mês)
             if len(dropdowns) >= 5:
                 await dropdowns[4].click()
-                await page.click(f".select2-result-label:has-text('{vigencia}')")
+                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
 
             # 6. BOTÃO PESQUISAR
-            await page.click("input[ng-click='pesquisar()']")
-            await page.wait_for_selector("tbody tr", timeout=20000)
+            await target_frame.click("input[ng-click='pesquisar()']")
+            await target_frame.wait_for_selector("tbody tr", timeout=20000)
 
             # 7. CAPTURA E EXTRAÇÃO DAS ROTINAS
-            linhas = await page.query_selector_all("tbody tr")
+            linhas = await target_frame.query_selector_all("tbody tr")
             rotinas_encontradas = []
 
             for index in range(len(linhas)):
-                botoes_analisar = await page.query_selector_all("i.fa-info-circle, button:has-text('Analisar'), a[title='Analisar']")
+                botoes_analisar = await target_frame.query_selector_all("i.fa-info-circle, button:has-text('Analisar'), a[title='Analisar']")
                 
                 if index < len(botoes_analisar):
                     await botoes_analisar[index].click()
-                    await page.wait_for_selector("text=Detalhes da Rotina", timeout=10000)
+                    await target_frame.wait_for_selector("text=Detalhes da Rotina", timeout=10000)
 
-                    dados_cabecalho = await page.inner_text("div.dados-rotina, div:has-text('Servidor')")
-                    tabela_detalhes = await page.inner_text("table")
+                    dados_cabecalho = await target_frame.inner_text("div.dados-rotina, div:has-text('Servidor')")
+                    tabela_detalhes = await target_frame.inner_text("table")
 
                     rotinas_encontradas.append({
                         "id": index + 1,
@@ -114,8 +123,8 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
                         "texto_rotina": tabela_detalhes
                     })
 
-                    await page.click("text=/Analisar Rotina/i")
-                    await page.wait_for_selector("tbody tr", timeout=10000)
+                    await target_frame.click("text=/Analisar Rotina/i")
+                    await target_frame.wait_for_selector("tbody tr", timeout=10000)
 
             await browser.close()
             return rotinas_encontradas
