@@ -5,6 +5,7 @@ import pandas as pd
 from google import genai
 from google.genai import types
 from playwright.async_api import async_playwright
+import streamlit.components.v1 as components
 
 os.system("playwright install chromium")
 
@@ -21,7 +22,19 @@ st.set_page_config(
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA
+# ESTADOS DA SESSÃO (PERSISTÊNCIA DE DADOS)
+# -----------------------------------------------------------------------------
+if "rotinas_carregadas" not in st.session_state:
+    st.session_state.rotinas_carregadas = None
+
+if "detalhe_rotina" not in st.session_state:
+    st.session_state.detalhe_rotina = None
+
+if "rotina_selecionada_info" not in st.session_state:
+    st.session_state.rotina_selecionada_info = None
+
+# -----------------------------------------------------------------------------
+# BARRA LATERAL COMPACTA COM BUSCA INTEGRADA
 # -----------------------------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configurações")
@@ -43,9 +56,8 @@ with st.sidebar:
     st.subheader("🔍 Filtros")
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
-    col_ano, col_mes = st.columns(2)
-    with col_ano:
-        ano_ref = st.selectbox("Ano", ["2026", "2025"])
+    # Invertido: Mês primeiro, Ano depois
+    col_mes, col_ano = st.columns(2)
     with col_mes:
         meses_opcoes = [
             "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
@@ -54,6 +66,13 @@ with st.sidebar:
             "11 - NOVEMBRO", "12 - DEZEMBRO"
         ]
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
+    with col_ano:
+        ano_ref = st.selectbox("Ano", ["2026", "2025"])
+
+    st.write("")
+    
+    # Botão de Busca movido para a Sidebar
+    btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
 
 empresa_sgde = "SED.MS"
 
@@ -61,19 +80,7 @@ empresa_sgde = "SED.MS"
 # CABEÇALHO PRINCIPAL
 # -----------------------------------------------------------------------------
 st.title("🤖 Analisador de Rotinas PCPI - SGDE")
-st.write("Pesquise as rotinas disponíveis no SGDE e clique em **Ver Rotina** para visualizar o relatório detalhado.")
-
-# -----------------------------------------------------------------------------
-# ESTADOS DA SESSÃO (PERSISTÊNCIA DE DADOS NA TELA)
-# -----------------------------------------------------------------------------
-if "rotinas_carregadas" not in st.session_state:
-    st.session_state.rotinas_carregadas = None
-
-if "detalhe_rotina" not in st.session_state:
-    st.session_state.detalhe_rotina = None
-
-if "rotina_selecionada_info" not in st.session_state:
-    st.session_state.rotina_selecionada_info = None
+st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique em **Ver Rotina** para visualizar os detalhes.")
 
 # -----------------------------------------------------------------------------
 # ETAPA 1: APENAS LISTAR AS ROTINAS
@@ -227,9 +234,9 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# BOTÃO DE BUSCA
+# AÇÃO DO BOTÃO DA SIDEBAR
 # -----------------------------------------------------------------------------
-if st.button("🔍 Buscar Lista de Rotinas no SGDE", type="primary", use_container_width=True):
+if btn_buscar:
     if not senha_sgde:
         st.error("Por favor, informe a senha do SGDE na barra lateral.")
     else:
@@ -272,7 +279,6 @@ if st.session_state.rotinas_carregadas:
         c2.write(rotina["Servidor"])
         c3.write(rotina["Situação"])
         
-        # Botão individual para cada rotina
         if c4.button(f"👁️ Ver Rotina", key=f"btn_{rotina['Index']}"):
             st.session_state.rotina_selecionada_info = rotina
             status_extracao = st.status(f"Carregando detalhes de {rotina['Servidor']}...", expanded=True)
@@ -291,23 +297,38 @@ if st.session_state.rotinas_carregadas:
                 st.error(f"Erro: {err}")
 
 # -----------------------------------------------------------------------------
-# AREA DE EXIBIÇÃO DA ROTINA DETALHADA (SEM IA)
+# AREA DE EXIBIÇÃO DA ROTINA DETALHADA (COM AUTOSCROLL)
 # -----------------------------------------------------------------------------
 if st.session_state.detalhe_rotina and st.session_state.rotina_selecionada_info:
     info = st.session_state.rotina_selecionada_info
     
     st.markdown("---")
+    
+    # Marcador HTML para o Auto-Scroll
+    st.markdown("<div id='secao-detalhamento'></div>", unsafe_allow_html=True)
+    
     st.header(f"📄 Detalhamento da Rotina: {info['Servidor']}")
     st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
 
-    # Exibe o conteúdo bruto capturado do SGDE de forma organizada na tela
-    with st.expander("📖 Clique para expandir/recolher o texto completo da Rotina", expanded=True):
+    with st.expander("📖 Conteúdo completo extraído do SGDE", expanded=True):
         st.text_area(
-            label="Conteúdo extraído do SGDE:",
+            label="Texto do Relatório:",
             value=st.session_state.detalhe_rotina,
             height=400,
             disabled=True
         )
 
-    # Espaço reservado para o futuro botão da IA / Rubricas
     st.info("💡 **Próximo passo:** Aqui colocaremos a integração com a IA e os parâmetros das rubricas para gerar o parecer automático!")
+
+    # Script JS para rolar a tela automaticamente até o detalhamento
+    components.html(
+        """
+        <script>
+            var element = window.parent.document.getElementById('secao-detalhamento');
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        </script>
+        """,
+        height=0,
+    )
