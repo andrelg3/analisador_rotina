@@ -61,11 +61,12 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
 
         try:
             # 1. Login no SGDE
-            await page.goto("https://www.sgde.ms.gov.br/")
-            await page.fill("input[name='usuario']", usuario)
-            await page.fill("input[name='senha']", senha)
-            await page.select_option("select[name='empresa']", label=empresa)
-            await page.click("button:has-text('Entrar')")
+            await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
+            await page.fill("#txtUsuario", usuario)
+            await page.fill("#txtSenha", senha)
+            await page.select_option("#ddlDominios", value=empresa)
+            await page.click("input[type='submit'], button:has-text('Entrar'), #btnEntrar, .btn")
+            await page.wait_for_load_state("networkidle")
 
             # 2. Navegação até a rotina de análise
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise")
