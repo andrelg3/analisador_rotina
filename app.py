@@ -65,7 +65,7 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
-            await page.click("input[type='submit'], button:has-text('Entrar'), #btnEntrar, .btn")
+            await page.click("#btnLogar")
             await page.wait_for_load_state("networkidle")
 
             # 2. Navegação até a rotina de análise
