@@ -56,7 +56,7 @@ with st.sidebar:
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
     with col_ano:
         ano_ref = st.selectbox("Ano", ["2026", "2025"])
-        
+        empresa_sgde = "SED.MS"
 
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
