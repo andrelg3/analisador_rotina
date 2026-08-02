@@ -47,14 +47,14 @@ with st.sidebar:
     
     col_ano, col_mes = st.columns(2)
     with col_ano:
-    ano_ref = st.selectbox("Ano", ["2026", "2025"])
+        ano_ref = st.selectbox("Ano", ["2026", "2025"])
     with col_mes:
         meses_opcoes = [
             "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
             "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
             "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
             "11 - NOVEMBRO", "12 - DEZEMBRO"
-            ]
+        ]
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
 
         
