@@ -68,10 +68,14 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
 
             # 2. Navegação até a página de rotina
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="networkidle")
-            await page.wait_for_selector("div[name='multiplicadorNte']", timeout=15000)
+            
+            # Aguarda o elemento do formulário do AngularJS carregar com timeout maior
+            seletor_assessor = "div[name='multiplicadorNte'], .ui-select-container"
+            await page.wait_for_selector(seletor_assessor, state="visible", timeout=30000)
+            await page.wait_for_timeout(2000) # Pausa de 2s para estabilizar o JS
 
             # 3. SELEÇÃO DO ASSESSOR (Simular Acesso)
-            await page.click("div[name='multiplicadorNte'] a.select2-choice")
+            await page.click("div[name='multiplicadorNte'] a.select2-choice, .ui-select-container a.select2-choice")
             await page.fill(".select2-search input.select2-input:visible", assessor)
             await page.click(f".select2-result-label:has-text('{assessor}')")
 
@@ -88,7 +92,7 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
 
             # 6. BOTÃO PESQUISAR
             await page.click("input[ng-click='pesquisar()']")
-            await page.wait_for_selector("tbody tr", timeout=15000)
+            await page.wait_for_selector("tbody tr", timeout=20000)
 
             # 7. CAPTURA E EXTRAÇÃO DAS ROTINAS
             linhas = await page.query_selector_all("tbody tr")
