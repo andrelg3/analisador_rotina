@@ -14,51 +14,47 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🤖 Analisador de Rotinas PCPI - SGDE")
-st.write("Pesquise as rotinas, escolha qual PROGETEC/Escola deseja analisar e gere o parecer.")
+# -----------------------------------------------------------------------------
+# LEITURA DA CHAVE VIA SECRETS
+# -----------------------------------------------------------------------------
+gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # -----------------------------------------------------------------------------
-# CONFIGURAÇÃO AUTOMÁTICA DA API KEY (SECRETS OU MANUAL)
+# BARRA LATERAL (ENTRADAS DE DADOS)
 # -----------------------------------------------------------------------------
-# Tenta pegar a chave diretamente dos Secrets do Streamlit
-chave_salva = st.secrets.get("GEMINI_API_KEY", "")
-
 with st.sidebar:
-    st.header("🔑 Configurações da IA")
-    if chave_salva:
+    st.header("🔑 Autenticação IA")
+    if gemini_api_key:
         st.success("✅ Gemini API Key configurada via Secrets!")
-        gemini_api_key = st.text_input("Gemini API Key (Opcional - sobrescrever)", value=chave_salva, type="password")
     else:
-        st.warning("⚠️ Nenhuma chave salva nos Secrets.")
-        gemini_api_key = st.text_input("Gemini API Key", type="password")
+        st.error("⚠️ Atenção: 'GEMINI_API_KEY' não encontrada nos Secrets do Streamlit.")
 
-# -----------------------------------------------------------------------------
-# FORMULÁRIO PRINCIPAL
-# -----------------------------------------------------------------------------
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("🔐 Credenciais SGDE")
+    st.markdown("---")
+    st.header("🔐 Credenciais SGDE")
     usuario_sgde = st.text_input("Usuário SGDE", value="agoulart")
     senha_sgde = st.text_input("Senha SGDE", type="password")
 
-with col2:
-    st.subheader("🔍 Filtros de Pesquisa")
-    assessor_nome = st.text_input("Simular Acesso (Assessor)", value="ANDRE LUIS GOULART")
+    st.markdown("---")
+    st.header("🔍 Filtros de Pesquisa")
+    assessor_nome = st.text_input("Assessor (Simular Acesso)", value="ANDRE LUIS GOULART")
     
-    col_ano, col_vigencia = st.columns(2)
-    with col_ano:
-        ano_ref = st.selectbox("Ano de Referência", ["2026", "2025"])
-    with col_vigencia:
-        meses_opcoes = [
-            "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
-            "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
-            "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
-            "11 - NOVEMBRO", "12 - DEZEMBRO"
-        ]
-        vigencia_ref = st.selectbox("Vigência (Mês)", meses_opcoes, index=4)
+    ano_ref = st.selectbox("Ano de Referência", ["2026", "2025"])
+    
+    meses_opcoes = [
+        "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
+        "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
+        "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
+        "11 - NOVEMBRO", "12 - DEZEMBRO"
+    ]
+    vigencia_ref = st.selectbox("Vigência (Mês)", meses_opcoes, index=4)
 
 empresa_sgde = "SED.MS"
+
+# -----------------------------------------------------------------------------
+# CABEÇALHO PRINCIPAL
+# -----------------------------------------------------------------------------
+st.title("🤖 Analisador de Rotinas PCPI - SGDE")
+st.write("Pesquise as rotinas disponíveis no SGDE e selecione qual deseja analisar.")
 
 # -----------------------------------------------------------------------------
 # ETAPA 1: APENAS LISTAR AS ROTINAS
@@ -89,7 +85,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                         target_frame = frame
                         break
 
-            log_container.write("🔍 Aplicando filtros...")
+            log_container.write("🔍 Aplicando filtros de busca...")
             simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
             await simular_box.click()
             await target_frame.fill(".select2-search input.select2-input:visible", assessor)
@@ -104,7 +100,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                 await dropdowns[4].click()
                 await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
 
-            log_container.write("🚀 Pesquisando...")
+            log_container.write("🚀 Pesquisando rotinas...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
             await page.wait_for_timeout(2000)
@@ -235,18 +231,19 @@ def analisar_com_gemini(api_key, conteudo_rotina):
     return response.text
 
 # -----------------------------------------------------------------------------
-# TELA PRINCIPAL
+# CORPO DA APLICAÇÃO
 # -----------------------------------------------------------------------------
-st.write("---")
+st.markdown("---")
 
 if "rotinas_carregadas" not in st.session_state:
     st.session_state.rotinas_carregadas = None
 
-if st.button("🔍 1. Buscar Lista de Rotinas", type="primary", use_container_width=True):
+# Botão principal de Busca
+if st.button("🔍 1. Buscar Lista de Rotinas no SGDE", type="primary", use_container_width=True):
     if not senha_sgde:
-        st.error("Por favor, informe a senha do SGDE.")
+        st.error("Por favor, informe a senha do SGDE na barra lateral.")
     else:
-        status_box = st.status("Pesquisando rotinas...", expanded=True)
+        status_box = st.status("Pesquisando rotinas no SGDE...", expanded=True)
         try:
             lista = asyncio.run(
                 buscar_lista_rotinas(
@@ -260,19 +257,21 @@ if st.button("🔍 1. Buscar Lista de Rotinas", type="primary", use_container_wi
             status_box.update(label="Falha na busca.", state="error", expanded=True)
             st.error(f"Erro: {err}")
 
+# Exibição dos Resultados e Seleção
 if st.session_state.rotinas_carregadas:
     st.success(f"Foram encontradas {len(st.session_state.rotinas_carregadas)} rotinas!")
     
     df_exibicao = pd.DataFrame(st.session_state.rotinas_carregadas)[["Unidade Escolar", "Servidor", "Situação"]]
     st.dataframe(df_exibicao, use_container_width=True)
 
-    st.subheader("🎯 Selecione a Rotina que deseja analisar:")
+    st.markdown("---")
+    st.subheader("🎯 Seleção de Rotina")
     opcoes = {r["Rótulo"]: r["Index"] for r in st.session_state.rotinas_carregadas}
-    rotina_escolhida = st.selectbox("Escolha o Servidor/Escola:", list(opcoes.keys()))
+    rotina_escolhida = st.selectbox("Escolha a rotina que deseja analisar:", list(opcoes.keys()))
 
     if st.button("🚀 2. Processar Análise Pedagógica da Rotina Selecionada", use_container_width=True):
         if not gemini_api_key:
-            st.error("Por favor, configure a Gemini API Key nos Secrets do Streamlit ou informe na barra lateral.")
+            st.error("Gemini API Key não está configurada nos Secrets do Streamlit.")
         else:
             status_box_analise = st.status("Extraindo dados e gerando parecer...", expanded=True)
             try:
@@ -286,11 +285,11 @@ if st.session_state.rotinas_carregadas:
                 status_box_analise.write("🧠 Gerando parecer pedagógico com Gemini...")
                 parecer = analisar_com_gemini(gemini_api_key, texto_rotina)
                 
-                status_box_analise.update(label="Análise concluída!", state="complete", expanded=False)
+                status_box_analise.update(label="Análise concluída com sucesso!", state="complete", expanded=False)
                 st.markdown("---")
                 st.subheader(f"📄 Parecer: {rotina_escolhida}")
                 st.markdown(parecer)
 
             except Exception as err:
-                status_box_analise.update(label="Falha ao processar.", state="error", expanded=True)
+                status_box_analise.update(label="Falha ao processar a análise.", state="error", expanded=True)
                 st.error(f"Erro: {err}")
