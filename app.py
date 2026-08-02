@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 import streamlit as st
 import pandas as pd
@@ -27,14 +28,14 @@ gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 if "rotinas_carregadas" not in st.session_state:
     st.session_state.rotinas_carregadas = None
 
-if "detalhe_rotina" not in st.session_state:
-    st.session_state.detalhe_rotina = None
+if "df_rotina_detalhada" not in st.session_state:
+    st.session_state.df_rotina_detalhada = None
 
 if "rotina_selecionada_info" not in st.session_state:
     st.session_state.rotina_selecionada_info = None
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA COM BUSCA INTEGRADA
+# BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configurações")
@@ -78,6 +79,34 @@ empresa_sgde = "SED.MS"
 # -----------------------------------------------------------------------------
 st.title("🤖 Analisador de Rotinas PCPI - SGDE")
 st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique em **Ver Rotina** para visualizar os detalhes.")
+
+# -----------------------------------------------------------------------------
+# FUNÇÃO PARA EXTRAIR E FORMATAR O TEXTO BRUTO EM DATAFRAME
+# -----------------------------------------------------------------------------
+def processar_texto_rotina(texto_bruto):
+    # Regex para capturar padrões de data (DD/MM/AAAA) seguidos do turno e da descrição
+    # Padrão: 01/07/2026 \t Matutino \t Descrição...
+    padrao = r'(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)'
+    
+    # Recorta o bloco entre "DESCRIÇÃO DA ROTINA" e "Parecer"
+    inicio = texto_bruto.find("DESCRIÇÃO DA ROTINA")
+    fim = texto_bruto.find("Parecer", inicio if inicio != -1 else 0)
+    
+    bloco_util = texto_bruto[inicio:fim] if inicio != -1 and fim != -1 else texto_bruto
+    
+    registros = []
+    matches = re.findall(padrao, bloco_util, re.DOTALL)
+    
+    for data, turno, descricao in matches:
+        # Limpa espaços e quebras de linha desnecessárias
+        desc_limpa = " ".join(descricao.split())
+        registros.append({
+            "Data": data,
+            "Turno": turno,
+            "Descrição da Rotina": desc_limpa
+        })
+        
+    return pd.DataFrame(registros)
 
 # -----------------------------------------------------------------------------
 # ETAPA 1: APENAS LISTAR AS ROTINAS
@@ -157,7 +186,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             raise Exception(f"Erro ao listar rotinas: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (CLIQUE PRECISO NO BOTÃO ANALISAR)
+# ETAPA 2: EXTRAIR A ROTINA SELECIONADA
 # -----------------------------------------------------------------------------
 async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vigencia, index_escolhido, log_container):
     async with async_playwright() as p:
@@ -206,37 +235,26 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             
             if index_escolhido < len(linhas):
-                log_container.write(f"🎯 Localizando o botão Analisar na rotina #{index_escolhido + 1}...")
+                log_container.write(f"🎯 Abrindo rotina #{index_escolhido + 1}...")
                 linha_alvo = linhas[index_escolhido]
                 
-                # Busca exata do botão 'Analisar' baseado no parâmetro informado
                 botao_analisar = await linha_alvo.query_selector("input[title='Analisar'], input[ng-click*='analisar']")
-                
                 if botao_analisar:
-                    log_container.write("👆 Clicando no botão Analisar...")
                     await botao_analisar.click()
                 else:
-                    log_container.write("⚠️ Botão específico não encontrado. Tentando clique direto na célula...")
                     await linha_alvo.click()
 
-                log_container.write("⏳ Aguardando abertura do formulário da rotina...")
+                log_container.write("⏳ Extraindo e estruturando relatórios...")
                 await page.wait_for_timeout(4000)
 
-                # Se houver carregamento por trás (backdrop/spinner), aguarda sumir
                 try:
                     await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=10000)
                 except:
                     pass
 
-                log_container.write("📖 Extraindo conteúdo do relatório...")
                 texto_bruto = await target_frame.inner_text("body")
-
-                # Tratamento simples para organizar a saída do texto
-                linhas_limpas = [linha.strip() for linha in texto_bruto.split("\n") if linha.strip()]
-                texto_organizado = "\n".join(linhas_limpas)
-
                 await browser.close()
-                return texto_organizado
+                return texto_bruto
 
             await browser.close()
             raise Exception("Linha da rotina não encontrada.")
@@ -252,7 +270,7 @@ if btn_buscar:
     if not senha_sgde:
         st.error("Por favor, informe a senha do SGDE na barra lateral.")
     else:
-        st.session_state.detalhe_rotina = None
+        st.session_state.df_rotina_detalhada = None
         st.session_state.rotina_selecionada_info = None
         status_box = st.status("Pesquisando rotinas...", expanded=True)
         try:
@@ -293,42 +311,53 @@ if st.session_state.rotinas_carregadas:
             st.session_state.rotina_selecionada_info = rotina
             status_extracao = st.status(f"Carregando detalhes de {rotina['Servidor']}...", expanded=True)
             try:
-                detalhes = asyncio.run(
+                texto_bruto = asyncio.run(
                     extrair_rotina_especifica(
                         usuario_sgde, senha_sgde, empresa_sgde,
                         assessor_nome, ano_ref, vigencia_ref, rotina["Index"], status_extracao
                     )
                 )
-                st.session_state.detalhe_rotina = detalhes
-                status_extracao.update(label="Rotina carregada com sucesso!", state="complete", expanded=False)
+                # Processa e converte para Tabela Nítida
+                df_formatado = processar_texto_rotina(texto_bruto)
+                st.session_state.df_rotina_detalhada = df_formatado
+                
+                status_extracao.update(label="Rotina carregada e formatada com sucesso!", state="complete", expanded=False)
                 st.rerun()
             except Exception as err:
                 status_extracao.update(label="Erro ao carregar rotina.", state="error", expanded=True)
                 st.error(f"Erro: {err}")
 
 # -----------------------------------------------------------------------------
-# AREA DE EXIBIÇÃO DA ROTINA DETALHADA (COM AUTOSCROLL)
+# AREA DE EXIBIÇÃO DA ROTINA DETALHADA EM TABELA NÍTIDA
 # -----------------------------------------------------------------------------
-if st.session_state.detalhe_rotina and st.session_state.rotina_selecionada_info:
+if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info:
     info = st.session_state.rotina_selecionada_info
-    
+    df = st.session_state.df_rotina_detalhada
+
     st.markdown("---")
-    
     st.markdown("<div id='secao-detalhamento'></div>", unsafe_allow_html=True)
     
     st.header(f"📄 Detalhamento da Rotina: {info['Servidor']}")
     st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
 
-    with st.expander("📖 Conteúdo completo extraído do SGDE", expanded=True):
-        st.text_area(
-            label="Texto do Relatório:",
-            value=st.session_state.detalhe_rotina,
-            height=400,
-            disabled=True
+    if not df.empty:
+        # Exibe a tabela formatada, limpa e com letras super nítidas
+        st.dataframe(
+            df,
+            column_config={
+                "Data": st.column_config.TextColumn("Data", width="small"),
+                "Turno": st.column_config.TextColumn("Turno", width="small"),
+                "Descrição da Rotina": st.column_config.TextColumn("Descrição da Rotina", width="large"),
+            },
+            hide_index=True,
+            use_container_width=True
         )
+    else:
+        st.warning("Não foram encontradas linhas de rotina válidas no texto capturado.")
 
-    st.info("💡 **Próximo passo:** Aqui colocaremos a integração com a IA e os parâmetros das rubricas para gerar o parecer automático!")
+    st.info("💡 **Próximo passo:** Na sequência, traremos a análise de IA ajustada para ler essa tabela e aplicar as rubricas do parecer!")
 
+    # Auto-Scroll para a tabela
     components.html(
         """
         <script>
