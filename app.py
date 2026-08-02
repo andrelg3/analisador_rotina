@@ -20,35 +20,42 @@ st.set_page_config(
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL (ENTRADAS DE DADOS)
+# BARRA LATERAL COMPACTA E OTIMIZADA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("🔑 Autenticação IA")
+    st.header("⚙️ Configurações")
+    
+    # Status da IA compacto
     if gemini_api_key:
-        st.success("✅ Gemini API Key configurada via Secrets!")
+        st.caption("✅ **IA:** API Key Ativa (Secrets)")
     else:
-        st.error("⚠️ Atenção: 'GEMINI_API_KEY' não encontrada nos Secrets do Streamlit.")
+        st.caption("❌ **IA:** API Key Ausente nos Secrets")
 
-    st.markdown("---")
-    st.header("🔐 Credenciais SGDE")
-    usuario_sgde = st.text_input("Usuário SGDE", value="agoulart")
-    senha_sgde = st.text_input("Senha SGDE", type="password")
+    st.write("") # Espaçamento leve
 
-    st.markdown("---")
-    st.header("🔍 Filtros de Pesquisa")
-    assessor_nome = st.text_input("Assessor (Simular Acesso)", value="ANDRE LUIS GOULART")
+    # Credenciais SGDE em colunas (Lado a Lado)
+    st.subheader("🔐 Acesso SGDE")
+    col_usr, col_pwd = st.columns(2)
+    with col_usr:
+        usuario_sgde = st.text_input("Usuário", value="agoulart")
+    with col_pwd:
+        senha_sgde = st.text_input("Senha", type="password")
+
+    # Filtros em formato enxuto
+    st.subheader("🔍 Filtros")
+    assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
-    ano_ref = st.selectbox("Ano de Referência", ["2026", "2025"])
-    
-    meses_opcoes = [
-        "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
-        "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
-        "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
-        "11 - NOVEMBRO", "12 - DEZEMBRO"
-    ]
-    vigencia_ref = st.selectbox("Vigência (Mês)", meses_opcoes, index=4)
-
-empresa_sgde = "SED.MS"
+    col_ano, col_mes = st.columns(2)
+    with col_ano:
+        ano_ref = st.selectbox("Ano", ["2026", "2025"])
+    with col_mes:
+        meses_opcoes = [
+            "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
+            "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
+            "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
+            "11 - NOVEMBRO", "12 - DEZEMBRO"
+        ]
+        vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
 
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
