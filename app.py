@@ -4,6 +4,11 @@ from google import genai
 from google.genai import types
 from playwright.async_api import async_playwright
 
+import os
+
+# Garante que o navegador headless do Playwright está baixado no servidor
+os.system("playwright install chromium")
+
 # -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA STREAMLIT
 # -----------------------------------------------------------------------------
