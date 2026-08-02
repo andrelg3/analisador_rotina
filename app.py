@@ -38,7 +38,7 @@ if "rotina_selecionada_info" not in st.session_state:
 # BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Configurações")
+    st.header("⚙️ Google Gemini")
     
     if gemini_api_key:
         st.caption("✅ **IA:** API Key Ativa (Secrets)")
