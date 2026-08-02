@@ -98,15 +98,21 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
             # 6. BOTÃO PESQUISAR
             # Clica no botão usando o atributo ng-click="pesquisar()" exato que você inspecionou
             await page.click("input[ng-click='pesquisar()']")
-            await page.wait_for_load_state("networkidle")
+            await page.wait_for_selector("tbody tr", timeout=15000)
+
+            # 7. CAPTURA E EXTRAÇÃO DAS ROTINAS ENCONTRADAS
+            linhas = await page.query_selector_all("tbody tr")
+            rotinas_encontradas = []
 
             for index in range(len(linhas)):
-                botoes_analisar = await page.query_selector_all("i.fa-info-circle, button:has-text('Analisar')")
+                # Localiza os ícones/botões de 'Analisar' na tabela de resultados
+                botoes_analisar = await page.query_selector_all("i.fa-info-circle, button:has-text('Analisar'), a[title='Analisar']")
+                
                 if index < len(botoes_analisar):
                     await botoes_analisar[index].click()
                     await page.wait_for_selector("text=Detalhes da Rotina", timeout=10000)
 
-                    # Extrai os dados do servidor e a tabela de atividades
+                    # Extrai as informações da tela da rotina do PCPI
                     dados_cabecalho = await page.inner_text("div.dados-rotina, div:has-text('Servidor')")
                     tabela_detalhes = await page.inner_text("table")
 
@@ -116,9 +122,9 @@ async def extrair_rotinas_sgde(usuario, senha, empresa, assessor, ano, vigencia)
                         "texto_rotina": tabela_detalhes
                     })
 
-                    # Voltar para a listagem
-                    await page.click("text=ANALISAR ROTINA")
-                    await page.wait_for_selector("table", timeout=10000)
+                    # Voltar para a listagem para analisar o próximo PCPI
+                    await page.click("text=/Analisar Rotina/i")
+                    await page.wait_for_selector("tbody tr", timeout=10000)
 
             await browser.close()
             return rotinas_encontradas
