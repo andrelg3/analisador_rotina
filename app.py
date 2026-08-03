@@ -10,8 +10,6 @@ import streamlit.components.v1 as components
 from google import genai
 import requests
 
-# Lê a chave da Groq nos Secrets do Streamlit
-groq_api_key = st.secrets.get("GROQ_API_KEY", "")
 
 os.system("playwright install chromium")
 
@@ -337,14 +335,9 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         except Exception as e:
             await browser.close()
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
-
-import time
-
-import requests
-
-import requests
-
-import requests
+            
+# Lê a chave da Groq nos Secrets do Streamlit
+groq_api_key = st.secrets.get("GROQ_API_KEY", "")
 
 # -----------------------------------------------------------------------------
 # ETAPA 3: TESTE DE CONEXÃO COM A IA (GROQ FREE - LLAMA 3.3 70B)
