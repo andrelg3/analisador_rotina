@@ -334,8 +334,10 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             await browser.close()
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
+import time
+
 # -----------------------------------------------------------------------------
-# ETAPA 3: ANALISAR COM IA (NOVA SDK GOOGLE-GENAI)
+# ETAPA 3: ANALISAR COM IA (TRATAMENTO DE QUOTA E RATE LIMIT - 429)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
@@ -413,24 +415,25 @@ STATUS: [Analisado / Analisado com pendência / Pendente]
 [Texto do parecer no formato exigido]
 """
 
-    try:
-        # Usa o SDK oficial moderno com a versão estável
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        return response.text
-    except Exception as e:
-        # Fallback para o gemini-2.0-flash caso o 2.5 não esteja liberado na sua API key
-        try:
-            response = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt,
-            )
-            return response.text
-        except Exception as e2:
-            raise Exception(f"Erro ao gerar análise na API: {str(e2)}")
+    modelos = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
 
+    for modelo in modelos:
+        for tentativa in range(3):  # Tenta até 3 vezes por modelo
+            try:
+                response = client.models.generate_content(
+                    model=modelo,
+                    contents=prompt,
+                )
+                return response.text
+            except Exception as e:
+                erro_str = str(e)
+                if "429" in erro_str or "RESOURCE_EXHAUSTED" in erro_str:
+                    time.sleep(10)  # Aguarda 10 segundos antes da próxima tentativa
+                    continue
+                else:
+                    break  # Se for outro tipo de erro, tenta o próximo modelo
+
+    raise Exception("A API do Gemini atingiu o limite de requisições gratuitas no momento. Por favor, aguarde cerca de 30 segundos e clique em 'Analisar com IA' novamente.")
 # -----------------------------------------------------------------------------
 # AÇÃO DO BOTÃO DA SIDEBAR
 # -----------------------------------------------------------------------------
