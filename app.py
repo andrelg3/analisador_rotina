@@ -336,64 +336,39 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 
 import time
 
+import requests
+
 # -----------------------------------------------------------------------------
-# ETAPA 3: TESTE DE CONEXÃO COM GEMINI-1.5-FLASH
+# ETAPA 3: TESTE DE CONEXÃO DIRETA VIA HTTP (SEM DEPENDER DO SDK DO GOOGLE)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
         raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
 
-    prompt_teste = "Olá! Por favor, responda apenas: 'Conexão com a IA realizada com sucesso!'."
+    # Endpoint oficial e direto do Gemini
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_api_key}"
+    
+    headers = {'Content-Type': 'json'}
+    payload = {
+        "contents": [{
+            "parts": [{"text": "Responda apenas: 'Conexão via HTTP realizada com sucesso!'"}]
+        }]
+    }
 
     try:
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',  # Testando a cota do modelo 1.5
-            contents=prompt_teste,
-        )
-        return response.text
-    except Exception as e:
-        raise Exception(f"Erro no teste de conexão (1.5-flash): {str(e)}")
-
-# -----------------------------------------------------------------------------
-# EXIBIÇÃO DA TABELA PRINCIPAL DE BUSCA
-# -----------------------------------------------------------------------------
-if st.session_state.rotinas_carregadas:
-    st.markdown("---")
-    st.subheader(f"📋 Rotinas Encontradas ({len(st.session_state.rotinas_carregadas)})")
-
-    col_esc, col_serv, col_sit, col_act = st.columns([3, 3, 2, 2])
-    col_esc.markdown("**Unidade Escolar**")
-    col_serv.markdown("**Servidor / PROGETEC**")
-    col_sit.markdown("**Situação**")
-    col_act.markdown("**Ação**")
-
-    st.markdown("---")
-
-    for rotina in st.session_state.rotinas_carregadas:
-        c1, c2, c3, c4 = st.columns([3, 3, 2, 2])
-        c1.write(rotina["Unidade Escolar"])
-        c2.write(rotina["Servidor"])
-        c3.write(rotina["Situação"])
+        response = requests.post(url, json=payload, timeout=10)
+        res_data = response.json()
         
-        if c4.button(f"👁️ Ver Rotina", key=f"btn_{rotina['Index']}"):
-            st.session_state.rotina_selecionada_info = rotina
-            st.session_state.resultado_ia = None
-            status_extracao = st.status(f"Carregando detalhes de {rotina['Servidor']}...", expanded=True)
-            try:
-                texto_bruto = asyncio.run(
-                    extrair_rotina_especifica(
-                        usuario_sgde, senha_sgde, empresa_sgde,
-                        assessor_nome, ano_ref, vigencia_ref, rotina["Index"], status_extracao
-                    )
-                )
-                df_formatado = processar_texto_rotina(texto_bruto)
-                st.session_state.df_rotina_detalhada = df_formatado
-                
-                status_extracao.update(label="Rotina carregada e formatada com sucesso!", state="complete", expanded=False)
-                st.rerun()
-            except Exception as err:
-                status_extracao.update(label="Erro ao carregar rotina.", state="error", expanded=True)
-                st.error(f"Erro: {err}")
+        if response.status_code == 200:
+            # Extrai a resposta da IA
+            texto_resposta = res_data['candidates'][0]['content']['parts'][0]['text']
+            return texto_resposta
+        else:
+            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido')
+            raise Exception(f"Status HTTP {response.status_code}: {erro_msg}")
+            
+    except Exception as e:
+        raise Exception(f"Erro na conexão via HTTP: {str(e)}")
 
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
