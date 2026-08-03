@@ -57,17 +57,24 @@ def verificar_sessao_ativa():
     return False, "00:00"
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA (SEM ROLAGEM)
+# BARRA LATERAL COMPACTA E 20% MAIS AFUNILADA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    # Reduz o espaçamento do topo e das margens da sidebar via CSS
+    # Ajusta a largura (20% menor) e os espaçamentos internos
     st.markdown("""
         <style>
-            [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-                gap: 0.4rem !important;
-            }
+            /* Reduz a largura da barra lateral em ~20% */
             [data-testid="stSidebar"] {
+                width: 16.8rem !important;
                 padding-top: 0rem !important;
+            }
+            /* Garante que o conteúdo principal se ajuste ao novo tamanho da sidebar */
+            [data-testid="stSidebar"] > div:first-child {
+                width: 16.8rem !important;
+            }
+            /* Reduz o espaço entre os elementos/campos */
+            [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+                gap: 0.35rem !important;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -80,7 +87,7 @@ with st.sidebar:
     else:
         st.caption("❌ **IA:** API Key Ausente")
 
-    # Status do SGDE e Cronômetro (Logo abaixo da IA)
+    # Status do SGDE e Cronômetro
     sessao_valida, cronometro_str = verificar_sessao_ativa()
     if sessao_valida:
         st.caption(f"✅ **Login SGDE Ligado** | ⏰ {cronometro_str}")
@@ -114,12 +121,6 @@ with st.sidebar:
 
     st.write("")
     btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
-
-# -----------------------------------------------------------------------------
-# CABEÇALHO PRINCIPAL
-# -----------------------------------------------------------------------------
-st.title("🤖 Analisador de Rotinas PCPI - SGDE")
-st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique em **Ver Rotina** para visualizar os detalhes.")
 
 # -----------------------------------------------------------------------------
 # FUNÇÃO PARA EXTRAIR E FORMATAR O TEXTO BRUTO EM DATAFRAME
