@@ -341,7 +341,7 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
         raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
 
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
     rotina_texto = df_rotina.to_string(index=False)
 
