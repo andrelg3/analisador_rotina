@@ -55,10 +55,9 @@ def verificar_sessao_ativa():
     st.session_state.sgde_cookies = None
     st.session_state.sgde_login_time = 0
     return False, "00:00"
+    
+empresa_sgde = "SED.MS"
 
-# -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA (SEM ROLAGEM)
-# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # BARRA LATERAL COMPACTA E 20% MAIS AFUNILADA
 # -----------------------------------------------------------------------------
