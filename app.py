@@ -520,7 +520,7 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
         
         eventos_input = st.text_area(
             "Eventos do Mês",
-            value="21 dias letivos\n02 ou 03 - Oficina LDM\n4 – Ponto Facultativo (PF) - Corpus Christi\n5 – Não letivo (NL)\n20 - Sábado Letivo - Família e Escola (F&E)\n22 ou 23 - Oficina Educação Digital\nPreenchimento Vistta até dia 08/06\nEnvio da Ata Vistta",
+            value=" ",
             height=130
         )
 
