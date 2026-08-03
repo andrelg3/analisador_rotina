@@ -337,93 +337,22 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 import time
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: ANALISAR COM IA (CHAMADA DIRETA E LIMPA)
+# ETAPA 3: TESTE DE CONEXÃO SIMPLES COM A IA (ECONOMIA DE TOKENS)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
         raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
 
-    rotina_texto = df_rotina.to_string(index=False)
-
-    prompt = f"""
-Você é um especialista em análise pedagógica de rotinas de PCPI (Professor Coordenador de Tecnologias Inovadoras).
-Sua tarefa é analisar a rotina enviada do servidor/PROGETEC **{nome_servidor}** com base nos **Eventos do Mês** e nos **13 Critérios da Rubrica Oficial**.
-
-### 📅 EVENTOS DO MÊS INFORMADOS PELO ASSESSOR:
-{eventos_mes if eventos_mes.strip() else "Nenhum evento específico informado para este mês."}
-
-### 📋 ROTINA REGISTRADA PELO PCPI:
-{rotina_texto}
-
----
-
-### 📏 REGRAS DE AVALIAÇÃO DOS 13 CRITÉRIOS (RUBRICA):
-Avalie cada um dos 13 critérios a seguir escolhendo APENAS UMA destas 3 classificações: "Adequado", "Parcialmente Adequado" ou "Insuficiente".
-
-1. **Cumprimento da carga horária**: Registros diários com turnos e dias letivos/não letivos coerentes com os eventos do mês.
-2. **Execução das ações do Plano de Ação**: Registros indicam execução integral do planejado.
-3. **Identificação da ação como Plano de Ação**: O PCPI explicita no texto "ação prevista no Plano de Ação".
-4. **Apoio ao planejamento pedagógico**: Auxílio e orientação ao professor regente.
-5. **Promoção de práticas inovadoras**: Incentivo a metodologias ativas, gamificação, projetos.
-6. **Uso pedagógico das tecnologias**: Foco pedagógico no uso de STE, LDM, robótica (não apenas suporte técnico).
-7. **Participação em formações da COTED/SED**: Registro de participação em oficinas/estudos da COTED.
-8. **Formação/orientação aos docentes**: Momentos formativos e desdobramentos para os professores.
-9. **Gerenciamento e agendamento de recursos e espaços**: Organização e controle de uso dos espaços/equipamentos.
-10. **Projetos de iniciação científica e clubes**: Ações de fomento e incentivo a projetos/clubes.
-11. **Participação em reuniões pedagógicas e conselhos**: Presença ativa em reuniões/conselhos.
-12. **Registro de ações colaborativas**: Ações técnicas/operacionais com indicação de solicitação da direção/coordenação.
-13. **Clareza dos registros**: Objetividade, coerência e detalhamento claro.
-
----
-
-### 🎯 REGRA PARA O STATUS DO PARECER FINAL:
-- Se houver **pelo menos 1 critério Insuficiente** -> Status Final = **Pendente**
-- Se NÃO houver Insuficiente, mas houver **pelo menos 1 Parcialmente Adequado** -> Status Final = **Analisado com pendência**
-- Se TODOS os critérios forem **Adequados** -> Status Final = **Analisado**
-
----
-
-### ✍️ ESTRUTURA OBRIGATÓRIA DO PARECER FINAL:
-1. **Saudação e Agradecimento**: Olá, {nome_servidor}! Parabéns pela entrega da sua rotina no prazo.
-2. **Apontamentos Positivos**: Destaque pontos fortes da atuação registrada.
-3. **Orientações / Recomendações**: Para cada critério avaliado como "Parcialmente Adequado" ou "Insuficiente", traga a orientação técnica em tom amigável e construtivo indicando o que precisa ser adjustedo/melhorado.
-4. **Encorajamento Final**: Frase motivacional e de apoio.
-
----
-
-### 📤 FORMATO DA RESPOSTA:
-Por favor, responda estruturado exatamente assim:
-
-STATUS: [Analisado / Analisado com pendência / Pendente]
-
----AVALIAÇÃO DA RUBRICA---
-1. Cumprimento da carga horária: [Classificação] - [Breve justificativa]
-2. Execução das ações do Plano de Ação: [Classificação] - [Breve justificativa]
-3. Identificação da ação como Plano de Ação: [Classificação] - [Breve justificativa]
-4. Apoio ao planejamento pedagógico: [Classificação] - [Breve justificativa]
-5. Promoção de práticas inovadoras: [Classificação] - [Breve justificativa]
-6. Uso pedagógico das tecnologias: [Classificação] - [Breve justificativa]
-7. Participação em formações da COTED/SED: [Classificação] - [Breve justificativa]
-8. Formação/orientação aos docentes: [Classificação] - [Breve justificativa]
-9. Gerenciamento e agendamento de recursos e espaços: [Classificação] - [Breve justificativa]
-10. Projetos de iniciação científica e clubes: [Classificação] - [Breve justificativa]
-11. Participação em reuniões pedagógicas e conselhos: [Classificação] - [Breve justificativa]
-12. Registro de ações colaborativas: [Classificação] - [Breve justificativa]
-13. Clareza dos registros: [Classificação] - [Breve justificativa]
-
----PARECER SUGERIDO---
-[Texto do parecer no formato exigido]
-"""
+    prompt_teste = "Olá! Por favor, responda apenas: 'Conexão com a IA realizada com sucesso!'."
 
     try:
-        # Chamada única ao modelo estável usando o SDK novo (google-genai)
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
+            model='gemini-2.0-flash',
+            contents=prompt_teste,
         )
         return response.text
     except Exception as e:
-        raise Exception(f"Erro na análise: {str(e)}")
+        raise Exception(f"Erro no teste de conexão: {str(e)}")
 # -----------------------------------------------------------------------------
 # AÇÃO DO BOTÃO DA SIDEBAR
 # -----------------------------------------------------------------------------
