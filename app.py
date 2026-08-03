@@ -2,15 +2,13 @@ import os
 import re
 import time
 import asyncio
-import streamlit as st
+import requests
 import pandas as pd
+import streamlit as st
 from playwright.async_api import async_playwright
 import streamlit.components.v1 as components
-# import google.generativeai as genai
-from google import genai
-import requests
 
-
+# Instala o navegador Chromium para o Playwright
 os.system("playwright install chromium")
 
 st.set_page_config(
@@ -21,12 +19,12 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# CONFIGURAÇÕES GERAIS DO SGDE E SECRETS
+# CONFIGURAÇÕES GERAIS DO SGDE E SECRETS (GROQ)
 # -----------------------------------------------------------------------------
 empresa_sgde = "SED.MS"
-gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-#client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
+# Leitura flexível da chave da Groq no Secrets do Streamlit
+groq_api_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
 
 # -----------------------------------------------------------------------------
 # ESTADOS DA SESSÃO
@@ -85,10 +83,13 @@ with st.sidebar:
 
     st.subheader("⚙️ Configurações")
     
-    if gemini_api_key:
-        st.caption("✅ **IA:** API Key Ativa")
+    # Validação do status da API Groq
+    if groq_api_key and groq_api_key.startswith("gsk_"):
+        st.caption("✅ **IA (Groq):** Chave Conectada")
+    elif groq_api_key:
+        st.caption("⚠️ **IA (Groq):** Chave Inválida (deve iniciar com gsk_)")
     else:
-        st.caption("❌ **IA:** API Key Ausente")
+        st.caption("❌ **IA (Groq):** Chave Ausente nos Secrets")
 
     sessao_valida, cronometro_str = verificar_sessao_ativa()
     if sessao_valida:
@@ -109,7 +110,9 @@ with st.sidebar:
     col_mes, col_ano = st.columns([1.6, 1])
     with col_mes:
         meses_opcoes = [
-            "07 - JULHO", "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
+            "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
+            "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
+            "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
             "11 - NOVEMBRO", "12 - DEZEMBRO"
         ]
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
@@ -333,33 +336,18 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         except Exception as e:
             await browser.close()
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
-            
-# Lê a chave da Groq nos Secrets do Streamlit
-groq_api_key = st.secrets.get("GROQ_API_KEY", "")
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: TESTE DE DIAGNÓSTICO E CONEXÃO GROQ (OLÁ)
+# ETAPA 3: TESTE DE CONEXÃO COM A IA (GROQ FREE - LLAMA 3.3 70B)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
-    # Tenta buscar a chave com diferentes nomes possíveis nos Secrets
-    chave = (
-        st.secrets.get("GROQ_API_KEY") or 
-        st.secrets.get("groq_api_key") or 
-        st.secrets.get("GEMINI_API_KEY")
-    )
+    chave = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
 
     if not chave:
-        raise Exception(
-            "Nenhuma chave encontrada nos Secrets! "
-            "Certifique-se de salvar GROQ_API_KEY = 'gsk_...' em Settings > Secrets."
-        )
+        raise Exception("A chave da API da Groq não foi encontrada nos Secrets. Salve como GROQ_API_KEY em Settings > Secrets.")
 
-    # Validação simples do formato da chave Groq
     if not chave.startswith("gsk_"):
-        raise Exception(
-            f"A chave encontrada não parece ser da Groq (deve começar com 'gsk_'). "
-            f"Sua chave começa com: '{chave[:4]}...'"
-        )
+        raise Exception("A chave nos Secrets não é válida para a Groq (deve começar com 'gsk_').")
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     
@@ -368,10 +356,12 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
         "Content-Type": "application/json"
     }
     
+    prompt_teste = "Olá! Por favor, responda apenas: 'Conexão com a Groq realizada com sucesso!'"
+    
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
-            {"role": "user", "content": "Responda apenas: 'Conexão com a Groq realizada com sucesso!'"}
+            {"role": "user", "content": prompt_teste}
         ],
         "temperature": 0.1
     }
@@ -383,11 +373,59 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
         if response.status_code == 200:
             return res_data['choices'][0]['message']['content']
         else:
-            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido')
-            raise Exception(f"Erro na Groq (HTTP {response.status_code}): {erro_msg}")
+            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido na Groq')
+            raise Exception(f"Status HTTP {response.status_code}: {erro_msg}")
             
     except Exception as e:
-        raise Exception(f"Erro de conexão: {str(e)}")
+        raise Exception(f"Erro no teste de conexão com a Groq: {str(e)}")
+
+# -----------------------------------------------------------------------------
+# EXECUÇÃO DO BOTÃO BUSCAR ROTINAS
+# -----------------------------------------------------------------------------
+if btn_buscar:
+    log_status = st.status("Iniciando busca no SGDE...", expanded=True)
+    try:
+        resultado = asyncio.run(buscar_lista_rotinas(
+            usuario_sgde, senha_sgde, empresa_sgde, 
+            assessor_nome, ano_ref, vigencia_ref, log_status
+        ))
+        st.session_state.rotinas_carregadas = resultado
+        log_status.update(label="Rotinas listadas com sucesso!", state="complete", expanded=False)
+    except Exception as e:
+        log_status.update(label="Erro durante a busca.", state="error", expanded=True)
+        st.error(f"Erro: {str(e)}")
+
+# -----------------------------------------------------------------------------
+# EXIBIÇÃO DA LISTA DE ROTINAS
+# -----------------------------------------------------------------------------
+if st.session_state.rotinas_carregadas:
+    st.subheader("📋 Rotinas Encontradas")
+    df_lista = pd.DataFrame(st.session_state.rotinas_carregadas)
+    
+    for idx, row in df_lista.iterrows():
+        col_esc, col_serv, col_sit, col_btn = st.columns([3, 3, 2, 2])
+        col_esc.write(f"**{row['Unidade Escolar']}**")
+        col_serv.write(row["Servidor"])
+        col_sit.write(row["Situação"])
+        
+        if col_btn.button("Ver Rotina", key=f"btn_rotina_{row['Index']}"):
+            log_ext = st.status(f"Buscando detalhes da rotina de {row['Servidor']}...", expanded=True)
+            try:
+                texto_bruto = asyncio.run(extrair_rotina_especifica(
+                    usuario_sgde, senha_sgde, empresa_sgde, 
+                    assessor_nome, ano_ref, vigencia_ref, row["Index"], log_ext
+                ))
+                
+                df_detalhado = processar_texto_rotina(texto_bruto)
+                st.session_state.df_rotina_detalhada = df_detalhado
+                st.session_state.rotina_selecionada_info = row
+                st.session_state.resultado_ia = None  # Limpa análise anterior
+                
+                log_ext.update(label="Rotina extraída com sucesso!", state="complete", expanded=False)
+                st.rerun()
+            except Exception as e:
+                log_ext.update(label="Erro ao extrair rotina.", state="error", expanded=True)
+                st.error(f"Erro: {str(e)}")
 
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
@@ -432,20 +470,20 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
         btn_analisar_ia = st.button("🤖 Analisar com IA", type="primary", use_container_width=True)
 
         if btn_analisar_ia:
-            status_ia = st.status("A IA está analisando a rotina e aplicando a rubrica...", expanded=True)
+            status_ia = st.status("A IA (Groq - Llama 3.3) está analisando...", expanded=True)
             try:
                 resultado = executar_analise_ia(df, info['Servidor'], eventos_input)
                 st.session_state.resultado_ia = resultado
-                status_ia.update(label="Análise concluída com sucesso!", state="complete", expanded=False)
+                status_ia.update(label="Análise realizada com sucesso!", state="complete", expanded=False)
                 st.rerun()
             except Exception as e:
-                status_ia.update(label="Erro durante a análise.", state="error", expanded=True)
+                status_ia.update(label="Erro durante o teste.", state="error", expanded=True)
                 st.error(f"Erro: {str(e)}")
 
         # EXIBIÇÃO DO RESULTADO DA IA
         if st.session_state.resultado_ia:
             st.markdown("---")
-            st.subheader("📊 Resultado da Análise com IA")
+            st.subheader("📊 Resultado do Teste com Groq")
             st.markdown(st.session_state.resultado_ia)
 
     else:
