@@ -6,7 +6,8 @@ import streamlit as st
 import pandas as pd
 from playwright.async_api import async_playwright
 import streamlit.components.v1 as components
-import google.generativeai as genai
+# import google.generativeai as genai
+from google import genai
 
 os.system("playwright install chromium")
 
@@ -24,7 +25,7 @@ empresa_sgde = "SED.MS"
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 if gemini_api_key:
-    genai.configure(api_key=gemini_api_key)
+    client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
 
 # -----------------------------------------------------------------------------
 # ESTADOS DA SESSÃO
@@ -335,7 +336,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: ANALISAR COM IA (LISTAGEM DINÂMICA DE MODELOS)
+# ETAPA 3: ANALISAR COM IA (NOVA SDK GOOGLE-GENAI)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
@@ -413,25 +414,23 @@ STATUS: [Analisado / Analisado com pendência / Pendente]
 [Texto do parecer no formato exigido]
 """
 
-    # Busca dinamicamente os modelos aceitos pela sua chave API
     try:
-        modelos_disponiveis = [
-            m.name for m in genai.list_models() 
-            if 'generateContent' in m.supported_generation_methods
-        ]
-        
-        if not modelos_disponiveis:
-            raise Exception("Nenhum modelo compatível com 'generateContent' foi encontrado na sua conta.")
-        
-        # Prioriza modelos 'flash' se existirem, senão pega o primeiro da lista
-        modelo_escolhido = next((m for m in modelos_disponiveis if 'flash' in m), modelos_disponiveis[0])
-
-        model = genai.GenerativeModel(modelo_escolhido)
-        response = model.generate_content(prompt)
+        # Usa o SDK oficial moderno com a versão estável
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
         return response.text
-
     except Exception as e:
-        raise Exception(f"Erro ao buscar modelos e gerar análise: {str(e)}")
+        # Fallback para o gemini-2.0-flash caso o 2.5 não esteja liberado na sua API key
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt,
+            )
+            return response.text
+        except Exception as e2:
+            raise Exception(f"Erro ao gerar análise na API: {str(e2)}")
 
 # -----------------------------------------------------------------------------
 # AÇÃO DO BOTÃO DA SIDEBAR
