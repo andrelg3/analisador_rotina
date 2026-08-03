@@ -57,39 +57,50 @@ def verificar_sessao_ativa():
     return False, "00:00"
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA
+# BARRA LATERAL COMPACTA (SEM ROLAGEM)
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Configurações")
+    # Reduz o espaçamento do topo e das margens da sidebar via CSS
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+                gap: 0.4rem !important;
+            }
+            [data-testid="stSidebar"] {
+                padding-top: 0rem !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.subheader("⚙️ Configurações")
     
+    # Status da IA
     if gemini_api_key:
-        st.caption("✅ **IA:** API Key Ativa (Secrets)")
+        st.caption("✅ **IA:** API Key Ativa")
     else:
-        st.caption("❌ **IA:** API Key Ausente nos Secrets")
+        st.caption("❌ **IA:** API Key Ausente")
 
-    st.write("")
-
-    st.subheader("🔐 Acesso SGDE")
-    
-    # Checagem do status da sessão
+    # Status do SGDE e Cronômetro (Logo abaixo da IA)
     sessao_valida, cronometro_str = verificar_sessao_ativa()
     if sessao_valida:
-        st.caption("✅ **Login SGDE Ligado**")
-        st.caption(f"⏰ **Sessão:** {cronometro_str}")
+        st.caption(f"✅ **Login SGDE Ligado** | ⏰ {cronometro_str}")
     else:
-        st.caption("❌ **Login SGDE Desligado**")
-        st.caption("⏰ **Sessão:** 00:00")
+        st.caption("❌ **Login SGDE Desligado** | ⏰ 00:00")
 
+    st.markdown("---")
+
+    # Campos de Login
     col_usr, col_pwd = st.columns(2)
     with col_usr:
         usuario_sgde = st.text_input("Usuário", value="agoulart")
     with col_pwd:
         senha_sgde = st.text_input("Senha", type="password")
 
-    st.subheader("🔍 Filtros")
+    # Campo de Assessor
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
-    col_mes, col_ano = st.columns(2)
+    # Seleção de Período
+    col_mes, col_ano = st.columns([1.6, 1])
     with col_mes:
         meses_opcoes = [
             "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
@@ -103,8 +114,6 @@ with st.sidebar:
 
     st.write("")
     btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
-
-empresa_sgde = "SED.MS"
 
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
