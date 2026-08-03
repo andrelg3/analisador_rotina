@@ -26,7 +26,7 @@ st.set_page_config(
 empresa_sgde = "SED.MS"
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
+@client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
 
 # -----------------------------------------------------------------------------
 # ESTADOS DA SESSÃO
