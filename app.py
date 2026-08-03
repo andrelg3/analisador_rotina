@@ -17,8 +17,9 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# LEITURA DA CHAVE VIA SECRETS
+# CONFIGURAÇÕES GERAIS DO SGDE E SECRETS
 # -----------------------------------------------------------------------------
+empresa_sgde = "SED.MS"
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # -----------------------------------------------------------------------------
@@ -33,7 +34,6 @@ if "df_rotina_detalhada" not in st.session_state:
 if "rotina_selecionada_info" not in st.session_state:
     st.session_state.rotina_selecionada_info = None
 
-# Gerenciamento de Sessão do SGDE (15 minutos = 900 segundos)
 if "sgde_cookies" not in st.session_state:
     st.session_state.sgde_cookies = None
 
@@ -51,30 +51,23 @@ def verificar_sessao_ativa():
             segundos = tempo_restante % 60
             return True, f"{minutos:02d}:{segundos:02d}"
     
-    # Se passou do tempo, invalida a sessão
     st.session_state.sgde_cookies = None
     st.session_state.sgde_login_time = 0
     return False, "00:00"
-    
-empresa_sgde = "SED.MS"
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA E 20% MAIS AFUNILADA
+# BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    # Ajusta a largura (20% menor) e os espaçamentos internos
     st.markdown("""
         <style>
-            /* Reduz a largura da barra lateral em ~20% */
             [data-testid="stSidebar"] {
                 width: 16.8rem !important;
                 padding-top: 0rem !important;
             }
-            /* Garante que o conteúdo principal se ajuste ao novo tamanho da sidebar */
             [data-testid="stSidebar"] > div:first-child {
                 width: 16.8rem !important;
             }
-            /* Reduz o espaço entre os elementos/campos */
             [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
                 gap: 0.35rem !important;
             }
@@ -83,13 +76,11 @@ with st.sidebar:
 
     st.subheader("⚙️ Configurações")
     
-    # Status da IA
     if gemini_api_key:
         st.caption("✅ **IA:** API Key Ativa")
     else:
         st.caption("❌ **IA:** API Key Ausente")
 
-    # Status do SGDE e Cronômetro
     sessao_valida, cronometro_str = verificar_sessao_ativa()
     if sessao_valida:
         st.caption(f"✅ **Login SGDE Ligado** | ⏰ {cronometro_str}")
@@ -98,17 +89,14 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Campos de Login
     col_usr, col_pwd = st.columns(2)
     with col_usr:
         usuario_sgde = st.text_input("Usuário", value="agoulart")
     with col_pwd:
         senha_sgde = st.text_input("Senha", type="password")
 
-    # Campo de Assessor
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
-    # Seleção de Período
     col_mes, col_ano = st.columns([1.6, 1])
     with col_mes:
         meses_opcoes = [
@@ -155,14 +143,23 @@ def processar_texto_rotina(texto_bruto):
     return pd.DataFrame(registros)
 
 # -----------------------------------------------------------------------------
-# ETAPA 1: APENAS LISTAR AS ROTINAS (REAPROVEITA SESSÃO OU FAZ NOVO LOGIN)
+# HELPER DE OTIMIZAÇÃO: BLOQUEIO DE RECURSOS DESNECESSÁRIOS
+# -----------------------------------------------------------------------------
+async def aplicar_otimizacoes_pagina(page):
+    # Bloqueia carregamento de imagens, mídia e fontes externas para acelerar
+    await page.route(
+        "**/*.{png,jpg,jpeg,gif,svg,ico,woff,woff2,ttf,otf,mp4,mp3}", 
+        lambda route: route.abort()
+    )
+
+# -----------------------------------------------------------------------------
+# ETAPA 1: APENAS LISTAR AS ROTINAS (OTIMIZADO)
 # -----------------------------------------------------------------------------
 async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia, log_container):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
-        # Verifica se já temos cookies válidos armazenados
         sessao_valida, _ = verificar_sessao_ativa()
         
         if sessao_valida and st.session_state.sgde_cookies:
@@ -175,23 +172,24 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             
             log_container.write("🔑 Efetuando login no SGDE...")
             page = await context.new_page()
-            await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
+            await aplicar_otimizacoes_pagina(page)
+            
+            await page.goto("https://www.sgde.ms.gov.br/", wait_until="domcontentloaded")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
             await page.click("#btnLogar")
-            await page.wait_for_load_state("networkidle")
+            await page.wait_for_selector("#txtUsuario", state="detached", timeout=15000)
 
-            # Salva a sessão e atualiza o cronômetro
             st.session_state.sgde_cookies = await context.cookies()
             st.session_state.sgde_login_time = time.time()
 
         page = await context.new_page()
+        await aplicar_otimizacoes_pagina(page)
 
         try:
             log_container.write("📍 Acessando tela de Análise de Rotina...")
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
-            await page.wait_for_timeout(3000)
 
             target_frame = page
             if len(page.frames) > 1:
@@ -201,26 +199,34 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                         break
 
             log_container.write("🔍 Aplicando filtros de busca...")
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
+            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=15000)
             await simular_box.click()
+            
             await target_frame.fill(".select2-search input.select2-input:visible", assessor)
-            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
+            label_assessor = await target_frame.wait_for_selector(f".select2-result-label:has-text('{assessor}')", timeout=10000)
+            await label_assessor.click()
 
             dropdowns = await target_frame.query_selector_all("a.select2-choice")
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
-                await target_frame.click(f".select2-result-label:has-text('{ano}')")
+                opt_ano = await target_frame.wait_for_selector(f".select2-result-label:has-text('{ano}')", timeout=5000)
+                await opt_ano.click()
 
             if len(dropdowns) >= 5:
                 await dropdowns[4].click()
-                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
+                opt_vig = await target_frame.wait_for_selector(f".select2-result-label:has-text('{vigencia}')", timeout=5000)
+                await opt_vig.click()
 
             log_container.write("🚀 Pesquisando rotinas...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
-            await page.wait_for_timeout(2000)
-            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
-            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
+            # Espera inteligente: aguarda o spinner sumir e a primeira linha aparecer
+            try:
+                await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=15000)
+            except:
+                pass
+                
+            await target_frame.wait_for_selector(".ui-grid-row", timeout=15000)
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             log_container.write(f"📋 Mapeando {len(linhas)} rotina(s)...")
@@ -249,7 +255,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             raise Exception(f"Erro ao listar rotinas: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (REAPROVEITA SESSÃO)
+# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (OTIMIZADO)
 # -----------------------------------------------------------------------------
 async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vigencia, index_escolhido, log_container):
     async with async_playwright() as p:
@@ -268,21 +274,23 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             
             log_container.write("🔑 Efetuando login no SGDE...")
             page = await context.new_page()
-            await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
+            await aplicar_otimizacoes_pagina(page)
+            
+            await page.goto("https://www.sgde.ms.gov.br/", wait_until="domcontentloaded")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
             await page.click("#btnLogar")
-            await page.wait_for_load_state("networkidle")
+            await page.wait_for_selector("#txtUsuario", state="detached", timeout=15000)
 
             st.session_state.sgde_cookies = await context.cookies()
             st.session_state.sgde_login_time = time.time()
 
         page = await context.new_page()
+        await aplicar_otimizacoes_pagina(page)
 
         try:
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
-            await page.wait_for_timeout(3000)
 
             target_frame = page
             if len(page.frames) > 1:
@@ -291,24 +299,32 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                         target_frame = frame
                         break
 
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
+            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=15000)
             await simular_box.click()
             await target_frame.fill(".select2-search input.select2-input:visible", assessor)
-            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
+            
+            label_assessor = await target_frame.wait_for_selector(f".select2-result-label:has-text('{assessor}')", timeout=10000)
+            await label_assessor.click()
 
             dropdowns = await target_frame.query_selector_all("a.select2-choice")
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
-                await target_frame.click(f".select2-result-label:has-text('{ano}')")
+                opt_ano = await target_frame.wait_for_selector(f".select2-result-label:has-text('{ano}')", timeout=5000)
+                await opt_ano.click()
 
             if len(dropdowns) >= 5:
                 await dropdowns[4].click()
-                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
+                opt_vig = await target_frame.wait_for_selector(f".select2-result-label:has-text('{vigencia}')", timeout=5000)
+                await opt_vig.click()
 
             await target_frame.click("input[ng-click='pesquisar()']")
-            await page.wait_for_timeout(2000)
-            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
-            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
+            
+            try:
+                await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=15000)
+            except:
+                pass
+
+            await target_frame.wait_for_selector(".ui-grid-row", timeout=15000)
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             
@@ -323,12 +339,15 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                     await linha_alvo.click()
 
                 log_container.write("⏳ Extraindo e estruturando relatórios...")
-                await page.wait_for_timeout(4000)
 
+                # Espera o modal/dados carregarem em vez do timeout fixo
                 try:
                     await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=10000)
                 except:
                     pass
+
+                # Pequena pausa mínima só para renderização final dos textos
+                await page.wait_for_timeout(1500)
 
                 texto_bruto = await target_frame.inner_text("body")
                 await browser.close()
@@ -420,14 +439,12 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
     st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
 
     if not df.empty:
-        # CABEÇALHO
         h1, h2, h3 = st.columns([1.2, 1.2, 7.6])
         h1.markdown("**Data**")
         h2.markdown("**Turno**")
         h3.markdown("**Descrição da Rotina**")
         st.divider()
 
-        # LINHAS COM QUEBRA AUTOMÁTICA DE TEXTO
         for idx, row in df.iterrows():
             c_data, c_turno, c_desc = st.columns([1.2, 1.2, 7.6])
             c_data.markdown(f"**{row['Data']}**")
@@ -441,7 +458,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
     st.write("")
     st.info("💡 **Próximo passo:** Na sequência, traremos a análise de IA ajustada para ler essa tabela e aplicar as rubricas do parecer!")
 
-    # Auto-Scroll para a tabela
     components.html(
         """
         <script>
