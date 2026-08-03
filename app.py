@@ -10,6 +10,9 @@ import streamlit.components.v1 as components
 from google import genai
 import requests
 
+# Lê a chave da Groq nos Secrets do Streamlit
+groq_api_key = st.secrets.get("GROQ_API_KEY", "")
+
 os.system("playwright install chromium")
 
 st.set_page_config(
@@ -344,20 +347,28 @@ import requests
 import requests
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: TESTE DE CONEXÃO REST API (MODELO OFICIAL gemini-2.0-flash)
+# ETAPA 3: TESTE DE CONEXÃO COM A IA (GROQ FREE - LLAMA 3.3 70B)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
-    if not gemini_api_key:
-        raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
+    if not groq_api_key:
+        raise Exception("A chave da API da Groq não foi configurada nos Secrets (GROQ_API_KEY).")
 
-    # Endpoint com o identificador de modelo oficial gemini-2.0-flash
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_api_key}"
+    # Endpoint oficial da Groq (API REST compatível com OpenAI)
+    url = "https://api.groq.com/openai/v1/chat/completions"
     
-    headers = {'Content-Type': 'application/json'}
+    headers = {
+        "Authorization": f"Bearer {groq_api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    prompt_teste = "Olá! Por favor, responda apenas: 'Conexão com a Groq realizada com sucesso!'"
+    
     payload = {
-        "contents": [{
-            "parts": [{"text": "Responda apenas: 'Conexão via HTTP realizada com sucesso!'"}]
-        }]
+        "model": "llama-3.3-70b-versatile",  # Modelo gratuito de alto desempenho
+        "messages": [
+            {"role": "user", "content": prompt_teste}
+        ],
+        "temperature": 0.2
     }
 
     try:
@@ -365,13 +376,13 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
         res_data = response.json()
         
         if response.status_code == 200:
-            return res_data['candidates'][0]['content']['parts'][0]['text']
+            return res_data['choices'][0]['message']['content']
         else:
-            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido')
+            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido na Groq')
             raise Exception(f"Status HTTP {response.status_code}: {erro_msg}")
             
     except Exception as e:
-        raise Exception(f"Erro na conexão via HTTP: {str(e)}")
+        raise Exception(f"Erro no teste de conexão com a Groq: {str(e)}")
 
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
