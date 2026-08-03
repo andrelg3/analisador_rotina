@@ -8,6 +8,7 @@ from playwright.async_api import async_playwright
 import streamlit.components.v1 as components
 # import google.generativeai as genai
 from google import genai
+import requests
 
 os.system("playwright install chromium")
 
@@ -338,17 +339,19 @@ import time
 
 import requests
 
+import requests
+
 # -----------------------------------------------------------------------------
-# ETAPA 3: TESTE DE CONEXÃO DIRETA VIA HTTP (SEM DEPENDER DO SDK DO GOOGLE)
+# ETAPA 3: TESTE DE CONEXÃO DIRETA COM REST API (V1 / MODELO ATUALIZADO)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
         raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
 
-    # Endpoint oficial e direto do Gemini
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_api_key}"
+    # URL oficial ajustada com o identificador de modelo mais recente no endpoint v1
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
     
-    headers = {'Content-Type': 'json'}
+    headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{
             "parts": [{"text": "Responda apenas: 'Conexão via HTTP realizada com sucesso!'"}]
@@ -356,14 +359,21 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
         res_data = response.json()
         
         if response.status_code == 200:
-            # Extrai a resposta da IA
             texto_resposta = res_data['candidates'][0]['content']['parts'][0]['text']
             return texto_resposta
         else:
+            # Se o 2.5-flash não estiver disponível na conta, tenta o alias estável 1.5-flash-latest
+            url_fallback = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={gemini_api_key}"
+            res_fb = requests.post(url_fallback, headers=headers, json=payload, timeout=10)
+            data_fb = res_fb.json()
+            
+            if res_fb.status_code == 200:
+                return data_fb['candidates'][0]['content']['parts'][0]['text']
+            
             erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido')
             raise Exception(f"Status HTTP {response.status_code}: {erro_msg}")
             
