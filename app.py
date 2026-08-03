@@ -337,7 +337,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 import time
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: TESTE DE CONEXÃO SIMPLES COM A IA (ECONOMIA DE TOKENS)
+# ETAPA 3: TESTE DE CONEXÃO COM GEMINI-1.5-FLASH
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
@@ -347,37 +347,12 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-1.5-flash',  # Testando a cota do modelo 1.5
             contents=prompt_teste,
         )
         return response.text
     except Exception as e:
-        raise Exception(f"Erro no teste de conexão: {str(e)}")
-# -----------------------------------------------------------------------------
-# AÇÃO DO BOTÃO DA SIDEBAR
-# -----------------------------------------------------------------------------
-if btn_buscar:
-    sessao_ok, _ = verificar_sessao_ativa()
-    if not sessao_ok and not senha_sgde:
-        st.error("Sessão deslogada ou expirada. Por favor, informe a senha do SGDE na barra lateral para acessar.")
-    else:
-        st.session_state.df_rotina_detalhada = None
-        st.session_state.rotina_selecionada_info = None
-        st.session_state.resultado_ia = None
-        status_box = st.status("Pesquisando rotinas...", expanded=True)
-        try:
-            lista = asyncio.run(
-                buscar_lista_rotinas(
-                    usuario_sgde, senha_sgde, empresa_sgde, 
-                    assessor_nome, ano_ref, vigencia_ref, status_box
-                )
-            )
-            st.session_state.rotinas_carregadas = lista
-            status_box.update(label=f"Sucesso! {len(lista)} rotina(s) encontrada(s).", state="complete", expanded=False)
-            st.rerun()
-        except Exception as err:
-            status_box.update(label="Falha na busca.", state="error", expanded=True)
-            st.error(f"Erro: {err}")
+        raise Exception(f"Erro no teste de conexão (1.5-flash): {str(e)}")
 
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA TABELA PRINCIPAL DE BUSCA
