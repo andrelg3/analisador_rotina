@@ -335,13 +335,11 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: ANALISAR COM IA (GEMINI)
+# ETAPA 3: ANALISAR COM IA (GEMINI COM FALLBACK DE MODELO)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
         raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
-
-    model = genai.GenerativeModel("gemini-1.5-flash")
 
     rotina_texto = df_rotina.to_string(index=False)
 
@@ -386,7 +384,7 @@ Avalie cada um dos 13 critérios a seguir escolhendO APENAS UMA destas 3 classif
 ### ✍️ ESTRUTURA OBRIGATÓRIA DO PARECER FINAL:
 1. **Saudação e Agradecimento**: Olá, {nome_servidor}! Parabéns pela entrega da sua rotina no prazo.
 2. **Apontamentos Positivos**: Destaque pontos fortes da atuação registrada.
-3. **Orientações / Recomendações**: Para cada critério avaliado como "Parcialmente Adequado" ou "Insuficiente", traga a orientação técnica em tom amigável e construtivo indicando o que precisa ser ajustado/melhorado.
+3. **Orientações / Recomendações**: Para cada critério avaliado como "Parcialmente Adequado" ou "Insuficiente", traga a orientação técnica em tom amigável e construtivo indicando o que precisa ser adjustedo/melhorado.
 4. **Encorajamento Final**: Frase motivacional e de apoio.
 
 ---
@@ -415,8 +413,26 @@ STATUS: [Analisado / Analisado com pendência / Pendente]
 [Texto do parecer no formato exigido]
 """
 
-    response = model.generate_content(prompt)
-    return response.text
+    # Lista de nomes de modelos para tentar em ordem
+    modelos_para_testar = [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
+    ]
+
+    ultimo_erro = None
+    for nome_modelo in modelos_para_testar:
+        try:
+            model = genai.GenerativeModel(nome_modelo)
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            ultimo_erro = e
+            continue
+
+    raise Exception(f"Não foi possível conectar a nenhum modelo do Gemini. Último erro: {ultimo_erro}")
 
 # -----------------------------------------------------------------------------
 # AÇÃO DO BOTÃO DA SIDEBAR
