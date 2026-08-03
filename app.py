@@ -340,42 +340,56 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 groq_api_key = st.secrets.get("GROQ_API_KEY", "")
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: TESTE DE CONEXÃO COM A IA (GROQ FREE - LLAMA 3.3 70B)
+# ETAPA 3: TESTE DE DIAGNÓSTICO E CONEXÃO GROQ (OLÁ)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
-    if not groq_api_key:
-        raise Exception("A chave da API da Groq não foi configurada nos Secrets (GROQ_API_KEY).")
+    # Tenta buscar a chave com diferentes nomes possíveis nos Secrets
+    chave = (
+        st.secrets.get("GROQ_API_KEY") or 
+        st.secrets.get("groq_api_key") or 
+        st.secrets.get("GEMINI_API_KEY")
+    )
 
-    # Endpoint oficial da Groq (API REST compatível com OpenAI)
+    if not chave:
+        raise Exception(
+            "Nenhuma chave encontrada nos Secrets! "
+            "Certifique-se de salvar GROQ_API_KEY = 'gsk_...' em Settings > Secrets."
+        )
+
+    # Validação simples do formato da chave Groq
+    if not chave.startswith("gsk_"):
+        raise Exception(
+            f"A chave encontrada não parece ser da Groq (deve começar com 'gsk_'). "
+            f"Sua chave começa com: '{chave[:4]}...'"
+        )
+
     url = "https://api.groq.com/openai/v1/chat/completions"
     
     headers = {
-        "Authorization": f"Bearer {groq_api_key}",
+        "Authorization": f"Bearer {chave}",
         "Content-Type": "application/json"
     }
     
-    prompt_teste = "Olá! Por favor, responda apenas: 'Conexão com a Groq realizada com sucesso!'"
-    
     payload = {
-        "model": "llama-3.3-70b-versatile",  # Modelo gratuito de alto desempenho
+        "model": "llama-3.3-70b-versatile",
         "messages": [
-            {"role": "user", "content": prompt_teste}
+            {"role": "user", "content": "Responda apenas: 'Conexão com a Groq realizada com sucesso!'"}
         ],
-        "temperature": 0.2
+        "temperature": 0.1
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response = requests.post(url, headers=headers, json=payload, timeout=15)
         res_data = response.json()
         
         if response.status_code == 200:
             return res_data['choices'][0]['message']['content']
         else:
-            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido na Groq')
-            raise Exception(f"Status HTTP {response.status_code}: {erro_msg}")
+            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido')
+            raise Exception(f"Erro na Groq (HTTP {response.status_code}): {erro_msg}")
             
     except Exception as e:
-        raise Exception(f"Erro no teste de conexão com a Groq: {str(e)}")
+        raise Exception(f"Erro de conexão: {str(e)}")
 
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
