@@ -57,6 +57,9 @@ def verificar_sessao_ativa():
     return False, "00:00"
 
 # -----------------------------------------------------------------------------
+# BARRA LATERAL COMPACTA (SEM ROLAGEM)
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # BARRA LATERAL COMPACTA E 20% MAIS AFUNILADA
 # -----------------------------------------------------------------------------
 with st.sidebar:
@@ -121,6 +124,12 @@ with st.sidebar:
 
     st.write("")
     btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
+
+# -----------------------------------------------------------------------------
+# CABEÇALHO PRINCIPAL
+# -----------------------------------------------------------------------------
+st.title("🤖 Analisador de Rotinas PCPI - SGDE")
+st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique em **Ver Rotina** para visualizar os detalhes.")
 
 # -----------------------------------------------------------------------------
 # FUNÇÃO PARA EXTRAIR E FORMATAR O TEXTO BRUTO EM DATAFRAME
