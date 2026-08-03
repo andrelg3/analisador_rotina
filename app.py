@@ -1,10 +1,9 @@
 import os
 import re
+import time
 import asyncio
 import streamlit as st
 import pandas as pd
-from google import genai
-from google.genai import types
 from playwright.async_api import async_playwright
 import streamlit.components.v1 as components
 
@@ -34,11 +33,34 @@ if "df_rotina_detalhada" not in st.session_state:
 if "rotina_selecionada_info" not in st.session_state:
     st.session_state.rotina_selecionada_info = None
 
+# Gerenciamento de Sessão do SGDE (15 minutos = 900 segundos)
+if "sgde_cookies" not in st.session_state:
+    st.session_state.sgde_cookies = None
+
+if "sgde_login_time" not in st.session_state:
+    st.session_state.sgde_login_time = 0
+
+TEMPO_LIMITE_SESSAO = 15 * 60  # 15 minutos em segundos
+
+def verificar_sessao_ativa():
+    if st.session_state.sgde_cookies and st.session_state.sgde_login_time > 0:
+        tempo_decorrido = time.time() - st.session_state.sgde_login_time
+        if tempo_decorrido < TEMPO_LIMITE_SESSAO:
+            tempo_restante = int(TEMPO_LIMITE_SESSAO - tempo_decorrido)
+            minutos = tempo_restante // 60
+            segundos = tempo_restante % 60
+            return True, f"{minutos:02d}:{segundos:02d}"
+    
+    # Se passou do tempo, invalida a sessão
+    st.session_state.sgde_cookies = None
+    st.session_state.sgde_login_time = 0
+    return False, "00:00"
+
 # -----------------------------------------------------------------------------
 # BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("🧠 Google Gemini")
+    st.header("⚙️ Configurações")
     
     if gemini_api_key:
         st.caption("✅ **IA:** API Key Ativa (Secrets)")
@@ -48,6 +70,16 @@ with st.sidebar:
     st.write("")
 
     st.subheader("🔐 Acesso SGDE")
+    
+    # Checagem do status da sessão
+    sessao_valida, cronometro_str = verificar_sessao_ativa()
+    if sessao_valida:
+        st.caption("✅ **Login SGDE Ligado**")
+        st.caption(f"⏰ **Sessão:** {cronometro_str}")
+    else:
+        st.caption("❌ **Login SGDE Desligado**")
+        st.caption("⏰ **Sessão:** 00:00")
+
     col_usr, col_pwd = st.columns(2)
     with col_usr:
         usuario_sgde = st.text_input("Usuário", value="agoulart")
@@ -105,16 +137,26 @@ def processar_texto_rotina(texto_bruto):
     return pd.DataFrame(registros)
 
 # -----------------------------------------------------------------------------
-# ETAPA 1: APENAS LISTAR AS ROTINAS
+# ETAPA 1: APENAS LISTAR AS ROTINAS (REAPROVEITA SESSÃO OU FAZ NOVO LOGIN)
 # -----------------------------------------------------------------------------
 async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia, log_container):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
-        page = await context.new_page()
 
-        try:
+        # Verifica se já temos cookies válidos armazenados
+        sessao_valida, _ = verificar_sessao_ativa()
+        
+        if sessao_valida and st.session_state.sgde_cookies:
+            log_container.write("⚡ Usando sessão ativa do SGDE...")
+            await context.add_cookies(st.session_state.sgde_cookies)
+        else:
+            if not senha:
+                await browser.close()
+                raise Exception("Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login.")
+            
             log_container.write("🔑 Efetuando login no SGDE...")
+            page = await context.new_page()
             await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
@@ -122,6 +164,13 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             await page.click("#btnLogar")
             await page.wait_for_load_state("networkidle")
 
+            # Salva a sessão e atualiza o cronômetro
+            st.session_state.sgde_cookies = await context.cookies()
+            st.session_state.sgde_login_time = time.time()
+
+        page = await context.new_page()
+
+        try:
             log_container.write("📍 Acessando tela de Análise de Rotina...")
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
@@ -182,16 +231,25 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             raise Exception(f"Erro ao listar rotinas: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 2: EXTRAIR A ROTINA SELECIONADA
+# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (REAPROVEITA SESSÃO)
 # -----------------------------------------------------------------------------
 async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vigencia, index_escolhido, log_container):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
-        page = await context.new_page()
 
-        try:
-            log_container.write("🔑 Acessando SGDE...")
+        sessao_valida, _ = verificar_sessao_ativa()
+
+        if sessao_valida and st.session_state.sgde_cookies:
+            log_container.write("⚡ Usando sessão ativa do SGDE...")
+            await context.add_cookies(st.session_state.sgde_cookies)
+        else:
+            if not senha:
+                await browser.close()
+                raise Exception("Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login.")
+            
+            log_container.write("🔑 Efetuando login no SGDE...")
+            page = await context.new_page()
             await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
@@ -199,6 +257,12 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             await page.click("#btnLogar")
             await page.wait_for_load_state("networkidle")
 
+            st.session_state.sgde_cookies = await context.cookies()
+            st.session_state.sgde_login_time = time.time()
+
+        page = await context.new_page()
+
+        try:
             await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
 
@@ -263,8 +327,9 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 # AÇÃO DO BOTÃO DA SIDEBAR
 # -----------------------------------------------------------------------------
 if btn_buscar:
-    if not senha_sgde:
-        st.error("Por favor, informe a senha do SGDE na barra lateral.")
+    sessao_ok, _ = verificar_sessao_ativa()
+    if not sessao_ok and not senha_sgde:
+        st.error("Sessão deslogada ou expirada. Por favor, informe a senha do SGDE na barra lateral para acessar.")
     else:
         st.session_state.df_rotina_detalhada = None
         st.session_state.rotina_selecionada_info = None
@@ -278,6 +343,7 @@ if btn_buscar:
             )
             st.session_state.rotinas_carregadas = lista
             status_box.update(label=f"Sucesso! {len(lista)} rotina(s) encontrada(s).", state="complete", expanded=False)
+            st.rerun()
         except Exception as err:
             status_box.update(label="Falha na busca.", state="error", expanded=True)
             st.error(f"Erro: {err}")
@@ -323,7 +389,7 @@ if st.session_state.rotinas_carregadas:
                 st.error(f"Erro: {err}")
 
 # -----------------------------------------------------------------------------
-# EXIBIÇÃO DA ROTINA DETALHADA (TABELA COM COLUNAS NATIVAS E LARGURAS PERFEITAS)
+# EXIBIÇÃO DA ROTINA DETALHADA
 # -----------------------------------------------------------------------------
 if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info:
     info = st.session_state.rotina_selecionada_info
@@ -336,7 +402,7 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
     st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
 
     if not df.empty:
-        # CABEÇALHO COM PROPORÇÃO [Data, Turno, Descrição]
+        # CABEÇALHO
         h1, h2, h3 = st.columns([1.2, 1.2, 7.6])
         h1.markdown("**Data**")
         h2.markdown("**Turno**")
