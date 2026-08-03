@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 from playwright.async_api import async_playwright
 import streamlit.components.v1 as components
+import google.generativeai as genai
 
 os.system("playwright install chromium")
 
@@ -17,9 +18,13 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# LEITURA DA CHAVE VIA SECRETS
+# CONFIGURAÇÕES GERAIS DO SGDE E SECRETS
 # -----------------------------------------------------------------------------
+empresa_sgde = "SED.MS"
 gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
+
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
 
 # -----------------------------------------------------------------------------
 # ESTADOS DA SESSÃO
@@ -33,12 +38,14 @@ if "df_rotina_detalhada" not in st.session_state:
 if "rotina_selecionada_info" not in st.session_state:
     st.session_state.rotina_selecionada_info = None
 
-# Gerenciamento de Sessão do SGDE (15 minutos = 900 segundos)
 if "sgde_cookies" not in st.session_state:
     st.session_state.sgde_cookies = None
 
 if "sgde_login_time" not in st.session_state:
     st.session_state.sgde_login_time = 0
+
+if "resultado_ia" not in st.session_state:
+    st.session_state.resultado_ia = None
 
 TEMPO_LIMITE_SESSAO = 15 * 60  # 15 minutos em segundos
 
@@ -51,30 +58,23 @@ def verificar_sessao_ativa():
             segundos = tempo_restante % 60
             return True, f"{minutos:02d}:{segundos:02d}"
     
-    # Se passou do tempo, invalida a sessão
     st.session_state.sgde_cookies = None
     st.session_state.sgde_login_time = 0
     return False, "00:00"
-    
-empresa_sgde = "SED.MS"
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA E 20% MAIS AFUNILADA
+# BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    # Ajusta a largura (20% menor) e os espaçamentos internos
     st.markdown("""
         <style>
-            /* Reduz a largura da barra lateral em ~20% */
             [data-testid="stSidebar"] {
                 width: 16.8rem !important;
                 padding-top: 0rem !important;
             }
-            /* Garante que o conteúdo principal se ajuste ao novo tamanho da sidebar */
             [data-testid="stSidebar"] > div:first-child {
                 width: 16.8rem !important;
             }
-            /* Reduz o espaço entre os elementos/campos */
             [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
                 gap: 0.35rem !important;
             }
@@ -83,13 +83,11 @@ with st.sidebar:
 
     st.subheader("⚙️ Configurações")
     
-    # Status da IA
     if gemini_api_key:
         st.caption("✅ **IA:** API Key Ativa")
     else:
         st.caption("❌ **IA:** API Key Ausente")
 
-    # Status do SGDE e Cronômetro
     sessao_valida, cronometro_str = verificar_sessao_ativa()
     if sessao_valida:
         st.caption(f"✅ **Login SGDE Ligado** | ⏰ {cronometro_str}")
@@ -98,17 +96,14 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Campos de Login
     col_usr, col_pwd = st.columns(2)
     with col_usr:
         usuario_sgde = st.text_input("Usuário", value="agoulart")
     with col_pwd:
         senha_sgde = st.text_input("Senha", type="password")
 
-    # Campo de Assessor
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
     
-    # Seleção de Período
     col_mes, col_ano = st.columns([1.6, 1])
     with col_mes:
         meses_opcoes = [
@@ -155,14 +150,13 @@ def processar_texto_rotina(texto_bruto):
     return pd.DataFrame(registros)
 
 # -----------------------------------------------------------------------------
-# ETAPA 1: APENAS LISTAR AS ROTINAS (REAPROVEITA SESSÃO OU FAZ NOVO LOGIN)
+# ETAPA 1: APENAS LISTAR AS ROTINAS (CÓDIGO ESTÁVEL)
 # -----------------------------------------------------------------------------
 async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia, log_container):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
-        # Verifica se já temos cookies válidos armazenados
         sessao_valida, _ = verificar_sessao_ativa()
         
         if sessao_valida and st.session_state.sgde_cookies:
@@ -182,7 +176,6 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             await page.click("#btnLogar")
             await page.wait_for_load_state("networkidle")
 
-            # Salva a sessão e atualiza o cronômetro
             st.session_state.sgde_cookies = await context.cookies()
             st.session_state.sgde_login_time = time.time()
 
@@ -249,7 +242,7 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             raise Exception(f"Erro ao listar rotinas: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (REAPROVEITA SESSÃO)
+# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (CÓDIGO ESTÁVEL)
 # -----------------------------------------------------------------------------
 async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vigencia, index_escolhido, log_container):
     async with async_playwright() as p:
@@ -342,6 +335,90 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
 # -----------------------------------------------------------------------------
+# ETAPA 3: ANALISAR COM IA (GEMINI)
+# -----------------------------------------------------------------------------
+def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
+    if not gemini_api_key:
+        raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
+
+    model = genai.GenerativeModel("gemini-2.5-flash")
+
+    rotina_texto = df_rotina.to_string(index=False)
+
+    prompt = f"""
+Você é um especialista em análise pedagógica de rotinas de PCPI (Professor Coordenador de Tecnologias Inovadoras).
+Sua tarefa é analisar a rotina enviada do servidor/PROGETEC **{nome_servidor}** com base nos **Eventos do Mês** e nos **13 Critérios da Rubrica Oficial**.
+
+### 📅 EVENTOS DO MÊS INFORMADOS PELO ASSESSOR:
+{eventos_mes if eventos_mes.strip() else "Nenhum evento específico informado para este mês."}
+
+### 📋 ROTINA REGISTRADA PELO PCPI:
+{rotina_texto}
+
+---
+
+### 📏 REGRAS DE AVALIAÇÃO DOS 13 CRITÉRIOS (RUBRICA):
+Avalie cada um dos 13 critérios a seguir escolhendO APENAS UMA destas 3 classificações: "Adequado", "Parcialmente Adequado" ou "Insuficiente".
+
+1. **Cumprimento da carga horária**: Registros diários com turnos e dias letivos/não letivos coerentes com os eventos do mês.
+2. **Execução das ações do Plano de Ação**: Registros indicam execução integral do planejado.
+3. **Identificação da ação como Plano de Ação**: O PCPI explicita no texto "ação prevista no Plano de Ação".
+4. **Apoio ao planejamento pedagógico**: Auxílio e orientação ao professor regente.
+5. **Promoção de práticas inovadoras**: Incentivo a metodologias ativas, gamificação, projetos.
+6. **Uso pedagógico das tecnologias**: Foco pedagógico no uso de STE, LDM, robótica (não apenas suporte técnico).
+7. **Participação em formações da COTED/SED**: Registro de participação em oficinas/estudos da COTED.
+8. **Formação/orientação aos docentes**: Momentos formativos e desdobramentos para os professores.
+9. **Gerenciamento e agendamento de recursos e espaços**: Organização e controle de uso dos espaços/equipamentos.
+10. **Projetos de iniciação científica e clubes**: Ações de fomento e incentivo a projetos/clubes.
+11. **Participação em reuniões pedagógicas e conselhos**: Presença ativa em reuniões/conselhos.
+12. **Registro de ações colaborativas**: Ações técnicas/operacionais com indicação de solicitação da direção/coordenação.
+13. **Clareza dos registros**: Objetividade, coerência e detalhamento claro.
+
+---
+
+### 🎯 REGRA PARA O STATUS DO PARECER FINAL:
+- Se houver **pelo menos 1 critério Insuficiente** -> Status Final = **Pendente**
+- Se NÃO houver Insuficiente, mas houver **pelo menos 1 Parcialmente Adequado** -> Status Final = **Analisado com pendência**
+- Se TODOS os critérios forem **Adequados** -> Status Final = **Analisado**
+
+---
+
+### ✍️ ESTRUTURA OBRIGATÓRIA DO PARECER FINAL:
+1. **Saudação e Agradecimento**: Olá, {nome_servidor}! Parabéns pela entrega da sua rotina no prazo.
+2. **Apontamentos Positivos**: Destaque pontos fortes da atuação registrada.
+3. **Orientações / Recomendações**: Para cada critério avaliado como "Parcialmente Adequado" ou "Insuficiente", traga a orientação técnica em tom amigável e construtivo indicando o que precisa ser ajustado/melhorado.
+4. **Encorajamento Final**: Frase motivacional e de apoio.
+
+---
+
+### 📤 FORMATO DA RESPOSTA:
+Por favor, responda estruturado exatamente assim:
+
+STATUS: [Analisado / Analisado com pendência / Pendente]
+
+---AVALIAÇÃO DA RUBRICA---
+1. Cumprimento da carga horária: [Classificação] - [Breve justificativa]
+2. Execução das ações do Plano de Ação: [Classificação] - [Breve justificativa]
+3. Identificação da ação como Plano de Ação: [Classificação] - [Breve justificativa]
+4. Apoio ao planejamento pedagógico: [Classificação] - [Breve justificativa]
+5. Promoção de práticas inovadoras: [Classificação] - [Breve justificativa]
+6. Uso pedagógico das tecnologias: [Classificação] - [Breve justificativa]
+7. Participação em formações da COTED/SED: [Classificação] - [Breve justificativa]
+8. Formação/orientação aos docentes: [Classificação] - [Breve justificativa]
+9. Gerenciamento e agendamento de recursos e espaços: [Classificação] - [Breve justificativa]
+10. Projetos de iniciação científica e clubes: [Classificação] - [Breve justificativa]
+11. Participação em reuniões pedagógicas e conselhos: [Classificação] - [Breve justificativa]
+12. Registro de ações colaborativas: [Classificação] - [Breve justificativa]
+13. Clareza dos registros: [Classificação] - [Breve justificativa]
+
+---PARECER SUGERIDO---
+[Texto do parecer no formato exigido]
+"""
+
+    response = model.generate_content(prompt)
+    return response.text
+
+# -----------------------------------------------------------------------------
 # AÇÃO DO BOTÃO DA SIDEBAR
 # -----------------------------------------------------------------------------
 if btn_buscar:
@@ -351,6 +428,7 @@ if btn_buscar:
     else:
         st.session_state.df_rotina_detalhada = None
         st.session_state.rotina_selecionada_info = None
+        st.session_state.resultado_ia = None
         status_box = st.status("Pesquisando rotinas...", expanded=True)
         try:
             lista = asyncio.run(
@@ -389,6 +467,7 @@ if st.session_state.rotinas_carregadas:
         
         if c4.button(f"👁️ Ver Rotina", key=f"btn_{rotina['Index']}"):
             st.session_state.rotina_selecionada_info = rotina
+            st.session_state.resultado_ia = None
             status_extracao = st.status(f"Carregando detalhes de {rotina['Servidor']}...", expanded=True)
             try:
                 texto_bruto = asyncio.run(
@@ -407,7 +486,7 @@ if st.session_state.rotinas_carregadas:
                 st.error(f"Erro: {err}")
 
 # -----------------------------------------------------------------------------
-# EXIBIÇÃO DA ROTINA DETALHADA
+# EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
 # -----------------------------------------------------------------------------
 if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info:
     info = st.session_state.rotina_selecionada_info
@@ -420,14 +499,12 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
     st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
 
     if not df.empty:
-        # CABEÇALHO
         h1, h2, h3 = st.columns([1.2, 1.2, 7.6])
         h1.markdown("**Data**")
         h2.markdown("**Turno**")
         h3.markdown("**Descrição da Rotina**")
         st.divider()
 
-        # LINHAS COM QUEBRA AUTOMÁTICA DE TEXTO
         for idx, row in df.iterrows():
             c_data, c_turno, c_desc = st.columns([1.2, 1.2, 7.6])
             c_data.markdown(f"**{row['Data']}**")
@@ -435,13 +512,41 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
             c_desc.write(row["Descrição da Rotina"])
             st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
+        st.markdown("---")
+        
+        # CAMPO PARA EVENTOS DO MÊS E BOTÃO DA IA
+        st.subheader("📅 Eventos e Calendário do Mês")
+        st.caption("Cole abaixo os eventos específicos do mês (ex: dias letivos, reuniões, feriados, formações) para a IA considerar na avaliação:")
+        
+        eventos_input = st.text_area(
+            "Eventos do Mês",
+            value="21 dias letivos\n02 ou 03 - Oficina LDM\n4 – Ponto Facultativo (PF) - Corpus Christi\n5 – Não letivo (NL)\n20 - Sábado Letivo - Família e Escola (F&E)\n22 ou 23 - Oficina Educação Digital\nPreenchimento Vistta até dia 08/06\nEnvio da Ata Vistta",
+            height=130
+        )
+
+        st.write("")
+        btn_analisar_ia = st.button("🤖 Analisar com IA", type="primary", use_container_width=True)
+
+        if btn_analisar_ia:
+            status_ia = st.status("A IA está analisando a rotina e aplicando a rubrica...", expanded=True)
+            try:
+                resultado = executar_analise_ia(df, info['Servidor'], eventos_input)
+                st.session_state.resultado_ia = resultado
+                status_ia.update(label="Análise concluída com sucesso!", state="complete", expanded=False)
+                st.rerun()
+            except Exception as e:
+                status_ia.update(label="Erro durante a análise.", state="error", expanded=True)
+                st.error(f"Erro: {str(e)}")
+
+        # EXIBIÇÃO DO RESULTADO DA IA
+        if st.session_state.resultado_ia:
+            st.markdown("---")
+            st.subheader("📊 Resultado da Análise com IA")
+            st.markdown(st.session_state.resultado_ia)
+
     else:
         st.warning("Não foram encontradas linhas de rotina válidas no texto capturado.")
 
-    st.write("")
-    st.info("💡 **Próximo passo:** Na sequência, traremos a análise de IA ajustada para ler essa tabela e aplicar as rubricas do parecer!")
-
-    # Auto-Scroll para a tabela
     components.html(
         """
         <script>
