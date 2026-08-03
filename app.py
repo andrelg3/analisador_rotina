@@ -337,7 +337,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 import time
 
 # -----------------------------------------------------------------------------
-# ETAPA 3: ANALISAR COM IA (TRATAMENTO DE QUOTA E RATE LIMIT - 429)
+# ETAPA 3: ANALISAR COM IA (CHAMADA DIRETA E LIMPA)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
@@ -386,7 +386,7 @@ Avalie cada um dos 13 critérios a seguir escolhendo APENAS UMA destas 3 classif
 ### ✍️ ESTRUTURA OBRIGATÓRIA DO PARECER FINAL:
 1. **Saudação e Agradecimento**: Olá, {nome_servidor}! Parabéns pela entrega da sua rotina no prazo.
 2. **Apontamentos Positivos**: Destaque pontos fortes da atuação registrada.
-3. **Orientações / Recomendações**: Para cada critério avaliado como "Parcialmente Adequado" ou "Insuficiente", traga a orientação técnica em tom amigável e construtivo indicando o que precisa ser ajustado/melhorado.
+3. **Orientações / Recomendações**: Para cada critério avaliado como "Parcialmente Adequado" ou "Insuficiente", traga a orientação técnica em tom amigável e construtivo indicando o que precisa ser adjustedo/melhorado.
 4. **Encorajamento Final**: Frase motivacional e de apoio.
 
 ---
@@ -415,25 +415,15 @@ STATUS: [Analisado / Analisado com pendência / Pendente]
 [Texto do parecer no formato exigido]
 """
 
-    modelos = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-
-    for modelo in modelos:
-        for tentativa in range(3):  # Tenta até 3 vezes por modelo
-            try:
-                response = client.models.generate_content(
-                    model=modelo,
-                    contents=prompt,
-                )
-                return response.text
-            except Exception as e:
-                erro_str = str(e)
-                if "429" in erro_str or "RESOURCE_EXHAUSTED" in erro_str:
-                    time.sleep(10)  # Aguarda 10 segundos antes da próxima tentativa
-                    continue
-                else:
-                    break  # Se for outro tipo de erro, tenta o próximo modelo
-
-    raise Exception("A API do Gemini atingiu o limite de requisições gratuitas no momento. Por favor, aguarde cerca de 30 segundos e clique em 'Analisar com IA' novamente.")
+    try:
+        # Chamada única ao modelo estável usando o SDK novo (google-genai)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        return response.text
+    except Exception as e:
+        raise Exception(f"Erro na análise: {str(e)}")
 # -----------------------------------------------------------------------------
 # AÇÃO DO BOTÃO DA SIDEBAR
 # -----------------------------------------------------------------------------
