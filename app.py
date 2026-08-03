@@ -341,15 +341,17 @@ import requests
 
 import requests
 
+import requests
+
 # -----------------------------------------------------------------------------
-# ETAPA 3: TESTE DE CONEXÃO DIRETA COM REST API (V1 / MODELO ATUALIZADO)
+# ETAPA 3: TESTE DE CONEXÃO REST API (MODELO OFICIAL gemini-2.0-flash)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     if not gemini_api_key:
         raise Exception("A chave da API do Gemini não foi configurada nos Secrets.")
 
-    # URL oficial ajustada com o identificador de modelo mais recente no endpoint v1
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
+    # Endpoint com o identificador de modelo oficial gemini-2.0-flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_api_key}"
     
     headers = {'Content-Type': 'application/json'}
     payload = {
@@ -363,17 +365,8 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
         res_data = response.json()
         
         if response.status_code == 200:
-            texto_resposta = res_data['candidates'][0]['content']['parts'][0]['text']
-            return texto_resposta
+            return res_data['candidates'][0]['content']['parts'][0]['text']
         else:
-            # Se o 2.5-flash não estiver disponível na conta, tenta o alias estável 1.5-flash-latest
-            url_fallback = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={gemini_api_key}"
-            res_fb = requests.post(url_fallback, headers=headers, json=payload, timeout=10)
-            data_fb = res_fb.json()
-            
-            if res_fb.status_code == 200:
-                return data_fb['candidates'][0]['content']['parts'][0]['text']
-            
             erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido')
             raise Exception(f"Status HTTP {response.status_code}: {erro_msg}")
             
