@@ -396,10 +396,12 @@ if btn_buscar:
         st.error(f"Erro: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# EXIBIÇÃO DA LISTA DE ROTINAS
+# EXIBIÇÃO DA LISTA DE ROTINAS (COM CONTADOR)
 # -----------------------------------------------------------------------------
-if st.session_state.rotinas_carregadas:
-    st.subheader("📋 Rotinas Encontradas")
+if st.session_state.rotinas_carregadas is not None:
+    qtd_rotinas = len(st.session_state.rotinas_carregadas)
+    st.subheader(f"📋 Rotinas Encontradas ({qtd_rotinas})")
+    
     df_lista = pd.DataFrame(st.session_state.rotinas_carregadas)
     
     for idx, row in df_lista.iterrows():
@@ -418,7 +420,9 @@ if st.session_state.rotinas_carregadas:
                 
                 df_detalhado = processar_texto_rotina(texto_bruto)
                 st.session_state.df_rotina_detalhada = df_detalhado
-                st.session_state.rotina_selecionada_info = row
+                
+                # Salva como dicionário nativo Python para evitar o erro de 'bool' do Pandas
+                st.session_state.rotina_selecionada_info = row.to_dict()
                 st.session_state.resultado_ia = None  # Limpa análise anterior
                 
                 log_ext.update(label="Rotina extraída com sucesso!", state="complete", expanded=False)
@@ -430,7 +434,7 @@ if st.session_state.rotinas_carregadas:
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
 # -----------------------------------------------------------------------------
-if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info:
+if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info is not None:
     info = st.session_state.rotina_selecionada_info
     df = st.session_state.df_rotina_detalhada
 
