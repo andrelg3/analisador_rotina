@@ -366,34 +366,32 @@ Antes de classificar os critérios, você DEVE realizar os seguintes cálculos:
 {rotina_texto}
 
 ---
-### 📏 OS 13 CRITÉRIOS:
-1. Cumprimento da carga horária e do calendário escolar
-1.1 Verificar se existe alternancia de períodos, matutino, vespertino e noturno, sendo aceitado no mínimo 2 diferentes por dia.
-1.2 Identificar se os dias letivos descritos no campo "Eventos" são coerentes com os dias de rotinas. 
-1.3 Identificar se as atividades de cada período são condizentes com as 4 horas por período, identificando ociosidade.
-2. Execução das ações previstas no Plano de Ação do PCPI
-2.1 Atividades referente ao plano de ação, como orientação a professores do projeto vinculados ao plano de ação.
-3. Identificação das ações como parte do Plano de Ação
-3.1 Escrita, estudo, formação, e qualquer ação vinculada ao projeto descrito como plano de ação do PCPI.
-4. Apoio ao planejamento pedagógico dos professores
-5. Promoção de práticas inovadoras
-5.1 Inclusão da tecnologia, aplicativos, softweres, metodologias ativas, uso da STE, LDM, Lousa digital, robotica etc...
-6. Uso pedagógico dos recursos e espaços
-6.1 STE, computadores, tablets, projetores/datashow, laboratorios etc...
-7. Participação em formações da COTED/SED
-7.1 As formações são pontuais, podem ter o nome como TikerCad, LDM, Robótica e IA, geralmente descritas no campo eventos, podem ser 2 dias seguidos, 1 dia, ou meio período, se não houver no campo eventos,
-não apontar como algo que foi deixado de fazer.
-8. Formação continuada e orientação aos docentes
-8.1 As formações geralmente são descritas no campo de eventos, as orientações aos professores o PCPI pode fazer a qualquer momento quando necessário.
-9. Gerenciamento e agendamento de recursos
-9.1 Disponibilização de equipamentos e acesso a sala de tecnologia(STE) mediante a agendamento.
-10. Projetos de iniciação científica e clubes
-11. Participação em reuniões pedagógicas e conselhos
-11.1 Quando houver...
-12. Registro adequado das ações colaborativas
-12.1 Ações colaborativas são aquelas que não se enquadram nas suas atribuições, observado até aqui do 1 a 12, porém quando precisar fazelas, descrever com clareza quem as solicitou e com qual proposito.
-13. Clareza, objetividade e coerência dos registros
+### 📏 OS 13 CRITÉRIOS DE AVALIAÇÃO:
 
+1. **Cumprimento da carga horária e do calendário escolar**: 
+   - 1.1 Alternância de períodos (Matutino, Vespertino, Noturno): aceito no mínimo 2 diferentes por dia.
+   - 1.2 Coerência entre dias letivos informados nos 'Eventos' e as datas registradas na rotina.
+   - 1.3 Carga horária condizente com 4 horas por período, identificando ociosidade.
+2. **Execução das ações previstas no Plano de Ação do PCPI**: 
+   - 2.1 Orientação a professores do projeto vinculados ao plano de ação.
+3. **Identificação das ações como parte do Plano de Ação**: 
+   - 3.1 Escrita, estudo, formação e qualquer ação vinculada ao projeto expressamente indicada como 'Plano de Ação do PCPI'.
+4. **Apoio ao planejamento pedagógico dos professores**: Auxílio e orientação direta ao professor regente.
+5. **Promoção de práticas inovadoras**: 
+   - 5.1 Inclusão de tecnologia, aplicativos, softwares, metodologias ativas, uso da STE, LDM, lousa digital, robótica, etc.
+6. **Uso pedagógico dos recursos e espaços**: 
+   - 6.1 Uso pedagógico de STE, computadores, tablets, projetores/datashow, laboratórios, etc.
+7. **Participação em formações da COTED/SED**: 
+   - 7.1 Formações pontuais (TinkerCad, LDM, Robótica, IA) geralmente descritas em 'Eventos'. Se não houver no campo eventos, NÃO apontar como algo que foi deixado de fazer.
+8. **Formação continuada e orientação aos docentes**: 
+   - 8.1 Formações descritas nos eventos; orientações pontuais feitas aos docentes quando necessário.
+9. **Gerenciamento e agendamento de recursos**: 
+   - 9.1 Disponibilização de equipamentos e acesso à STE mediante agendamento.
+10. **Projetos de iniciação científica e clubes**: Ações de fomento e incentivo.
+11. **Participação em reuniões pedagógicas e conselhos**: Presença em reuniões e conselhos quando houver.
+12. **Registro adequado das ações colaborativas**: 
+    - 12.1 Atividades fora das atribuições principais (de 1 a 11): se realizadas, devem descrever claramente **quem solicitou** (direção/coordenação) e o **propósito**.
+13. **Clareza, objetividade e coerência dos registros**: Qualidade e nível de detalhamento da escrita.
 ---
 ### 📤 SUA RESPOSTA DEVE SER EXCLUSIVAMENTE UM JSON VÁLIDO (SEM MARKDOWN DE CÓDIGO) NO SEGUINTE FORMATO:
 
