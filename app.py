@@ -340,7 +340,7 @@ import json
 # -----------------------------------------------------------------------------
 # ETAPA 3: ANALISAR COM IA (RETORNANDO JSON PARA O LAYOUT)
 # -----------------------------------------------------------------------------
-def executar_analise_ia(df_rotina, nome_servidor, eventos_mes, nome_assessor):
+def executar_analise_ia(df_rotina, nome_servidor, eventos_mes, assessor_nome):
     chave = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
 
     if not chave:
@@ -402,7 +402,7 @@ Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Evento
     ... (fazer isso do número 1 ao 13)
   ],
   "parecer_sugerido": "Olá, {nome_servidor}! Agradeço o envio dos seus registros... apontar brevemente pontos positivos, depois apontar os pontos 
-  que necessitam alteração ou recomendação de melhoria para o proximo mes, finalizar com uma saldação "Atenciosamente, {nome_assessor}"
+  que necessitam alteração ou recomendação de melhoria para o proximo mes, finalizar com uma saldação "Atenciosamente, {assessor_nome}"
 }}
 
 O campo 'status' (tanto geral quanto dos aspectos) deve ser APENAS um destes valores exatos:
