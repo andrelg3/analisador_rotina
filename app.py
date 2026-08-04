@@ -110,10 +110,8 @@ with st.sidebar:
     col_mes, col_ano = st.columns([1.6, 1])
     with col_mes:
         meses_opcoes = [
-            "02 - FEVEREIRO", "03 - MARÇO", "04 - ABRIL", 
-            "05 - MAIO", "06 - JUNHO", "07 - JULHO", 
-            "08 - AGOSTO", "09 - SETEMBRO", "10 - OUTUBRO", 
-            "11 - NOVEMBRO", "12 - DEZEMBRO"
+            "06 - JUNHO", "07 - JULHO", 
+            "08 - AGOSTO", "09 - SETEMBRO"
         ]
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
     with col_ano:
