@@ -381,7 +381,8 @@ Antes de classificar os critérios, você DEVE realizar os seguintes cálculos:
 6. Uso pedagógico dos recursos e espaços
 6.1 STE, computadores, tablets, projetores/datashow, laboratorios etc...
 7. Participação em formações da COTED/SED
-7.1 As formações são pontuais, geralmente descritas no campo eventos, podem ser 2 dias seguidos, 1 dia, ou meio período, se não houver no campo eventos, não apontar como algo que foi deixado de fazer.
+7.1 As formações são pontuais, geralmente descritas no campo eventos, podem ser 2 dias seguidos, 1 dia, ou meio período, se não houver no campo eventos,
+não apontar como algo que foi deixado de fazer, as formações podem ter o nome como TikerCad, LDM, Robótica e IA.
 8. Formação continuada e orientação aos docentes
 8.1 As formações geralmente são descritas no campo de eventos, as orientações aos professores o PCPI pode fazer a qualquer momento quando necessário.
 9. Gerenciamento e agendamento de recursos
