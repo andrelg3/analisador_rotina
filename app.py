@@ -113,7 +113,7 @@ with st.sidebar:
             "06 - JUNHO", "07 - JULHO", 
             "08 - AGOSTO", "09 - SETEMBRO"
         ]
-        vigencia_ref = st.selectbox("Mês", meses_opcoes, index=4)
+        vigencia_ref = st.selectbox("Mês", meses_opcoes, index=7)
     with col_ano:
         ano_ref = st.selectbox("Ano", ["2026", "2025"])
 
