@@ -337,117 +337,89 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             await browser.close()
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
+import json
+
 # -----------------------------------------------------------------------------
-# ETAPA 3: ANALISAR COM IA (GROQ FREE - LLAMA 3.3 70B + RUBRICA COMPLETA)
+# ETAPA 3: ANALISAR COM IA (RETORNANDO JSON PARA O LAYOUT)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
     chave = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
 
     if not chave:
-        raise Exception("A chave da API da Groq não foi encontrada nos Secrets. Salve como GROQ_API_KEY em Settings > Secrets.")
-
-    if not chave.startswith("gsk_"):
-        raise Exception("A chave nos Secrets não é válida para a Groq (deve começar com 'gsk_').")
+        raise Exception("A chave da API da Groq não foi encontrada nos Secrets.")
 
     rotina_texto = df_rotina.to_string(index=False)
 
     prompt = f"""
 Você é um especialista em análise pedagógica de rotinas de PCPI (Professor Coordenador de Tecnologias Inovadoras).
-Sua tarefa é analisar a rotina enviada do servidor/PROGETEC **{nome_servidor}** com base nos **Eventos do Mês** e nos **13 Critérios da Rubrica Oficial**.
+Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Eventos do Mês** e nos **13 Critérios da Rubrica Oficial**.
 
-### 📅 EVENTOS DO MÊS INFORMADOS PELO ASSESSOR:
+### 📅 EVENTOS DO MÊS:
 {eventos_mes if eventos_mes.strip() else "Nenhum evento específico informado para este mês."}
 
-### 📋 ROTINA REGISTRADA PELO PCPI:
+### 📋 ROTINA REGISTRADA:
 {rotina_texto}
 
 ---
-
-### 📏 REGRAS DE AVALIAÇÃO DOS 13 CRITÉRIOS (RUBRICA):
-Avalie cada um dos 13 critérios a seguir escolhendo APENAS UMA destas 3 classificações: "Adequado", "Parcialmente Adequado" ou "Insuficiente".
-
-1. **Cumprimento da carga horária**: Registros diários com turnos e dias letivos/não letivos coerentes com os eventos do mês.
-2. **Execução das ações do Plano de Ação**: Registros indicam execução integral do planejado.
-3. **Identificação da ação como Plano de Ação**: O PCPI explicita no texto "ação prevista no Plano de Ação".
-4. **Apoio ao planejamento pedagógico**: Auxílio e orientação ao professor regente.
-5. **Promoção de práticas inovadoras**: Incentivo a metodologias ativas, gamificação, projetos.
-6. **Uso pedagógico das tecnologias**: Foco pedagógico no uso de STE, LDM, robótica (não apenas suporte técnico).
-7. **Participação em formações da COTED/SED**: Registro de participação em oficinas/estudos da COTED.
-8. **Formação/orientação aos docentes**: Momentos formativos e desdobramentos para os professores.
-9. **Gerenciamento e agendamento de recursos e espaços**: Organização e controle de uso dos espaços/equipamentos.
-10. **Projetos de iniciação científica e clubes**: Ações de fomento e incentivo a projetos/clubes.
-11. **Participação em reuniões pedagógicas e conselhos**: Presença ativa em reuniões/conselhos.
-12. **Registro de ações colaborativas**: Ações técnicas/operacionais com indicação de solicitação da direção/coordenação.
-13. **Clareza dos registros**: Objetividade, coerência e detalhamento claro.
+### 📏 OS 13 CRITÉRIOS:
+1. Cumprimento da carga horária e do calendário escolar
+2. Execução das ações previstas no Plano de Ação do PCPI
+3. Identificação das ações como parte do Plano de Ação
+4. Apoio ao planejamento pedagógico dos professores
+5. Promoção de práticas inovadoras
+6. Uso pedagógico dos recursos e espaços
+7. Participação em formações da COTED/SED
+8. Formação continuada e orientação aos docentes
+9. Gerenciamento e agendamento de recursos
+10. Projetos de iniciação científica e clubes
+11. Participação em reuniões pedagógicas e conselhos
+12. Registro adequado das ações colaborativas
+13. Clareza, objetividade e coerência dos registros
 
 ---
+### 📤 SUA RESPOSTA DEVE SER EXCLUSIVAMENTE UM JSON VÁLIDO (SEM MARKDOWN DE CÓDIGO) NO SEGUINTE FORMATO:
 
-### 🎯 REGRA PARA O STATUS DO PARECER FINAL:
-- Se houver **pelo menos 1 critério Insuficiente** -> Status Final = **Pendente**
-- Se NÃO houver Insuficiente, mas houver **pelo menos 1 Parcialmente Adequado** -> Status Final = **Analisado com pendência**
-- Se TODOS os critérios forem **Adequados** -> Status Final = **Analisado**
+{{
+  "status_geral": "Pendente",
+  "confronto_eventos": "Texto do confronto com os eventos do mês...",
+  "aspectos": [
+    {{
+      "numero": 1,
+      "titulo": "Cumprimento da carga horária e do calendário escolar",
+      "status": "Pendente",
+      "evidencia": "Não há registro do Sábado Letivo..."
+    }},
+    ... (fazer isso do número 1 ao 13)
+  ],
+  "parecer_sugerido": "Olá, {nome_servidor}! Agradeço o envio dos seus registros..."
+}}
 
----
-
-### ✍️ ESTRUTURA OBRIGATÓRIA DO PARECER FINAL:
-1. **Saudação e Agradecimento**: Olá, {nome_servidor}! Parabéns pela entrega da sua rotina no prazo.
-2. **Apontamentos Positivos**: Destaque pontos fortes da atuação registrada.
-3. **Orientações / Recomendações**: Para cada critério avaliado como "Parcialmente Adequado" ou "Insuficiente", traga a orientação técnica em tom amigável e construtivo indicando o que precisa ser ajustado/melhorado.
-4. **Encorajamento Final**: Frase motivacional e de apoio.
-
----
-
-### 📤 FORMATO DA RESPOSTA:
-Por favor, responda estruturado exatamente assim:
-
-STATUS: [Analisado / Analisado com pendência / Pendente]
-
----AVALIAÇÃO DA RUBRICA---
-1. Cumprimento da carga horária: [Classificação] - [Breve justificativa]
-2. Execução das ações do Plano de Ação: [Classificação] - [Breve justificativa]
-3. Identificação da ação como Plano de Ação: [Classificação] - [Breve justificativa]
-4. Apoio ao planejamento pedagógico: [Classificação] - [Breve justificativa]
-5. Promoção de práticas inovadoras: [Classificação] - [Breve justificativa]
-6. Uso pedagógico das tecnologias: [Classificação] - [Breve justificativa]
-7. Participação em formações da COTED/SED: [Classificação] - [Breve justificativa]
-8. Formação/orientação aos docentes: [Classificação] - [Breve justificativa]
-9. Gerenciamento e agendamento de recursos e espaços: [Classificação] - [Breve justificativa]
-10. Projetos de iniciação científica e clubes: [Classificação] - [Breve justificativa]
-11. Participação em reuniões pedagógicas e conselhos: [Classificação] - [Breve justificativa]
-12. Registro de ações colaborativas: [Classificação] - [Breve justificativa]
-13. Clareza dos registros: [Classificação] - [Breve justificativa]
-
----PARECER SUGERIDO---
-[Texto do parecer no formato exigido]
+O campo 'status' (tanto geral quanto dos aspectos) deve ser APENAS um destes valores exatos:
+- "Adequado"
+- "Com Pendência"
+- "Pendente"
 """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
-    
-    headers = {
-        "Authorization": f"Bearer {chave}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {chave}", "Content-Type": "application/json"}
     
     payload = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
+        "messages": [{"role": "user", "content": prompt}],
+        "response_format": {"type": "json_object"},
         "temperature": 0.2
     }
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=45)
         res_data = response.json()
-        
         if response.status_code == 200:
-            return res_data['choices'][0]['message']['content']
+            content = res_data['choices'][0]['message']['content']
+            return json.loads(content)
         else:
-            erro_msg = res_data.get('error', {}).get('message', 'Erro desconhecido na Groq')
-            raise Exception(f"Status HTTP {response.status_code}: {erro_msg}")
-            
+            raise Exception(res_data.get('error', {}).get('message', 'Erro na IA'))
     except Exception as e:
-        raise Exception(f"Erro ao processar análise na Groq: {str(e)}")
+        raise Exception(f"Erro ao processar análise em JSON: {str(e)}")
 
 # -----------------------------------------------------------------------------
 # EXECUÇÃO DO BOTÃO BUSCAR ROTINAS
@@ -554,23 +526,109 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
                 status_ia.update(label="Erro durante o teste.", state="error", expanded=True)
                 st.error(f"Erro: {str(e)}")
 
-        # EXIBIÇÃO DO RESULTADO DA IA
+       # EXIBIÇÃO DO RESULTADO DA IA ESTILIZADO (IGUAL AOS PRINTS)
         if st.session_state.resultado_ia:
+            res = st.session_state.resultado_ia
+            
             st.markdown("---")
-            st.subheader("📊 Resultado do Teste com Groq")
-            st.markdown(st.session_state.resultado_ia)
+            
+            # CSS Personalizado para badges, cards e caixas
+            st.markdown("""
+                <style>
+                    .card-box {
+                        background-color: #f8f9fa;
+                        border: 1px solid #e9ecef;
+                        border-radius: 12px;
+                        padding: 16px 20px;
+                        margin-bottom: 16px;
+                    }
+                    .card-eventos {
+                        background-color: #fffdf5;
+                        border: 1px solid #fce8b3;
+                        border-radius: 12px;
+                        padding: 18px;
+                        margin-bottom: 20px;
+                        color: #795548;
+                    }
+                    .badge-pendente {
+                        background-color: #ffebee;
+                        color: #c62828;
+                        padding: 4px 12px;
+                        border-radius: 16px;
+                        font-weight: bold;
+                        font-size: 0.85rem;
+                        border: 1px solid #ffcdd2;
+                    }
+                    .badge-compendencia {
+                        background-color: #fff8e1;
+                        color: #b78103;
+                        padding: 4px 12px;
+                        border-radius: 16px;
+                        font-weight: bold;
+                        font-size: 0.85rem;
+                        border: 1px solid #ffe082;
+                    }
+                    .badge-adequado {
+                        background-color: #e8f5e9;
+                        color: #2e7d32;
+                        padding: 4px 12px;
+                        border-radius: 16px;
+                        font-weight: bold;
+                        font-size: 0.85rem;
+                        border: 1px solid #c8e6c9;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
 
-    else:
-        st.warning("Não foram encontradas linhas de rotina válidas no texto capturado.")
+            # 1. CABEÇALHO DO CARD SUPERIOR
+            status_geral = res.get("status_geral", "Pendente")
+            badge_class = "badge-pendente" if "Pendente" in status_geral else ("badge-compendencia" if "Pendência" in status_geral else "badge-adequado")
+            
+            st.caption("ANÁLISE CONCLUÍDA")
+            col_t1, col_t2 = st.columns([3, 1])
+            with col_t1:
+                st.markdown(f"### **{info['Servidor']}**")
+            with col_t2:
+                st.markdown(f"<div style='text-align: right;'><span class='{badge_class}'>● {status_geral}</span></div>", unsafe_allow_html=True)
+            
+            st.caption(f"📄 {info['Servidor'].lower().replace(' ', '_')}_rotina.pdf")
+            st.write("")
 
-    components.html(
-        """
-        <script>
-            var element = window.parent.document.getElementById('secao-detalhamento');
-            if (element) {
-                element.scrollIntoView({ behavior: 'smooth' });
-            }
-        </script>
-        """,
-        height=0,
-    )
+            # 2. CONFRONTO DE EVENTOS DO MÊS
+            st.markdown(f"""
+                <div class='card-eventos'>
+                    <h5 style='color: #a0522d; margin-top:0;'>📅 CONFRONTO DE EVENTOS DO MÊS</h5>
+                    <p style='margin-bottom:0;'>{res.get('confronto_eventos', '')}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # 3. AVALIAÇÃO DOS 13 ASPECTOS TÉCNICOS
+            st.subheader("✔️ Avaliação dos 13 Aspectos Técnicos")
+            st.caption("Clique nos itens abaixo para ver a justificativa e evidência de cada um:")
+
+            for asp in res.get("aspectos", []):
+                st_asp = asp.get("status", "Pendente")
+                tag_icon = "🔴" if "Pendente" in st_asp else ("🟡" if "Pendência" in st_asp else "🟢")
+                
+                with st.expander(f"ASPECTO {asp.get('numero')} - {asp.get('titulo')}  |  {tag_icon} {st_asp}"):
+                    st.markdown("**Análise e Evidência:**")
+                    st.write(asp.get("evidencia", "Sem detalhes fornecidos."))
+
+            st.write("")
+            st.markdown("---")
+
+            # 4. CARD DE SUGESTÃO DE STATUS
+            if "Pendente" in status_geral:
+                st.error(f"❌ **SUGESTÃO DE STATUS DO PARECER: {status_geral.upper()}**\n\nHá pelo menos um dos 13 aspectos considerado insuficiente ou em desacordo grave com as diretrizes do projeto.")
+            elif "Pendência" in status_geral:
+                st.warning(f"⚠️ **SUGESTÃO DE STATUS DO PARECER: {status_geral.upper()}**\n\nExistem aspectos pontuais que necessitam de ajustes do PCPI.")
+            else:
+                st.success(f"✅ **SUGESTÃO DE STATUS DO PARECER: {status_geral.upper()}**\n\nTodos os critérios foram atendidos de forma adequada.")
+
+            st.write("")
+
+            # 5. PARECER SUGERIDO PARA O SGDE
+            st.subheader("📝 Sugestão de Parecer para o e-SGDE")
+            parecer_texto = res.get("parecer_sugerido", "")
+            
+            st.text_area("Parecer Completo (pronto para copiar):", value=parecer_texto, height=260)
