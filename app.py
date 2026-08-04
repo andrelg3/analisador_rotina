@@ -352,6 +352,13 @@ def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
 Você é um especialista em análise pedagógica de rotinas de PCPI (Professor Coordenador de Tecnologias Inovadoras).
 Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Eventos do Mês** e nos **13 Critérios da Rubrica Oficial**.
 
+### 🚨 PASSO OBRIGATÓRIO DE CONFRONTO QUANTITATIVO E DE DATAS:
+Antes de classificar os critérios, você DEVE realizar os seguintes cálculos:
+1. Contar quantos registros/dias únicos de dias letivos existem na tabela "ROTINA REGISTRADA".
+2. Comparar essa quantidade diretamente com a quantidade de dias letivos informada no campo "EVENTOS DO MÊS".
+   - Se os EVENTOS DO MÊS informam X dias letivos e a ROTINA tem Y dias registados (X ≠ Y), você DEVE apontar essa divergência exata no "confronto_eventos" e classificar o Aspecto 1 (Cumprimento da carga horária) como "Pendente" ou "Com Pendência".
+3. Verificar se as oficinas/eventos com data marcada nos "EVENTOS DO MÊS" (ex: "Oficina de LDM no dia 14") constam no dia exato na tabela "ROTINA REGISTRADA".
+
 ### 📅 EVENTOS DO MÊS:
 {eventos_mes if eventos_mes.strip() else "Nenhum evento específico informado para este mês."}
 
