@@ -404,7 +404,7 @@ Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Evento
     ... (fazer isso do número 1 ao 13)
   ],
   "parecer_sugerido": "Olá, {nome_servidor}! Agradeço o envio dos seus registros... apontar brevemente pontos positivos, depois apontar os pontos 
-  que necessitam alteração ou recomendação de melhoria para o proximo mes, finalizar com uma saldação "Atenciosamente, {assessor_name}"
+  que necessitam alteração ou recomendação de melhoria para o proximo mes, finalizar com uma saldação "Atenciosamente, nome do assessor"
 }}
 
 O campo 'status' (tanto geral quanto dos aspectos) deve ser APENAS um destes valores exatos:
