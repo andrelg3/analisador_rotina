@@ -376,7 +376,7 @@ Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Evento
 6. Uso pedagógico dos recursos e espaços
 6.1 STE, computadores, tablets, projetores/datashow, laboratorios etc...
 7. Participação em formações da COTED/SED
-7.1 As formações são pontuais, geralmente descritas no campo eventos, podem ser 2 dias seguidos, 1 dia, ou meio período.
+7.1 As formações são pontuais, geralmente descritas no campo eventos, podem ser 2 dias seguidos, 1 dia, ou meio período, se não houver no campo eventos, não apontar como algo que foi deixado de fazer.
 8. Formação continuada e orientação aos docentes
 8.1 As formações geralmente são descritas no campo de eventos, as orientações aos professores o PCPI pode fazer a qualquer momento quando necessário.
 9. Gerenciamento e agendamento de recursos
@@ -409,7 +409,7 @@ Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Evento
 
 O campo 'status' (tanto geral quanto dos aspectos) deve ser APENAS um destes valores exatos:
 - "Adequado"
-- "Com Pendência"
+- "Com pendência"
 - "Pendente"
 """
 
