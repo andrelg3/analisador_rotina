@@ -399,11 +399,12 @@ Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Evento
       "numero": 1,
       "titulo": "Cumprimento da carga horária e do calendário escolar",
       "status": "Pendente",
-      "evidencia": "Não há registro do Sábado Letivo..."
+      "evidencia": "Não há registro do Sábado Letivo... Trazer trexo da rotina entre aspas quando necessário."
     }},
     ... (fazer isso do número 1 ao 13)
   ],
-  "parecer_sugerido": "Olá, {nome_servidor}! Agradeço o envio dos seus registros..."
+  "parecer_sugerido": "Olá, {nome_servidor}! Agradeço o envio dos seus registros... apontar brevemente pontos positivos, depois apontar os pontos 
+  que necessitam alteração ou recomendação de melhoria para o proximo mes, finalizar com uma saldação "Atenciosamente, {assessor_name}"
 }}
 
 O campo 'status' (tanto geral quanto dos aspectos) deve ser APENAS um destes valores exatos:
