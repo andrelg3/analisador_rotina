@@ -363,17 +363,29 @@ Análise a rotina do servidor/PROGETEC **{nome_servidor}** com base nos **Evento
 ---
 ### 📏 OS 13 CRITÉRIOS:
 1. Cumprimento da carga horária e do calendário escolar
+1.1 Verificar se existe alternancia de períodos, matutino, vespertino e noturno, sendo aceitado no mínimo 2 diferentes por dia.
+1.2 Identificar se os dias letivos descritos no campo "Eventos" são coerentes com os dias de rotinas. 
+1.3 Identificar se as atividades de cada período são condizentes com as 4 horas por período, identificando ociosidade.
 2. Execução das ações previstas no Plano de Ação do PCPI
+2.1 Atividades referente ao plano de ação, como orientação a professores do projeto vinculados ao plano de ação.
 3. Identificação das ações como parte do Plano de Ação
+3.1 Escrita, estudo, formação, e qualquer ação vinculada ao projeto descrito como plano de ação do PCPI.
 4. Apoio ao planejamento pedagógico dos professores
 5. Promoção de práticas inovadoras
+5.1 Inclusão da tecnologia, aplicativos, softweres, metodologias ativas, uso da STE, LDM, Lousa digital, robotica etc...
 6. Uso pedagógico dos recursos e espaços
+6.1 STE, computadores, tablets, projetores/datashow, laboratorios etc...
 7. Participação em formações da COTED/SED
+7.1 As formações são pontuais, geralmente descritas no campo eventos, podem ser 2 dias seguidos, 1 dia, ou meio período.
 8. Formação continuada e orientação aos docentes
+8.1 As formações geralmente são descritas no campo de eventos, as orientações aos professores o PCPI pode fazer a qualquer momento quando necessário.
 9. Gerenciamento e agendamento de recursos
+9.1 Disponibilização de equipamentos e acesso a sala de tecnologia(STE) mediante a agendamento.
 10. Projetos de iniciação científica e clubes
 11. Participação em reuniões pedagógicas e conselhos
+11.1 Quando houver...
 12. Registro adequado das ações colaborativas
+12.1 Ações colaborativas são aquelas que não se enquadram nas suas atribuições, observado até aqui do 1 a 12, porém quando precisar fazelas, descrever com clareza quem as solicitou e com qual proposito.
 13. Clareza, objetividade e coerência dos registros
 
 ---
