@@ -591,55 +591,124 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
                 </style>
             """, unsafe_allow_html=True)
 
+            # -----------------------------------------------------------------------------
+            # REVALIDAÇÃO AUTOMÁTICA DO STATUS GERAL VIA PYTHON (GARANTE CONSISTÊNCIA)
+            # -----------------------------------------------------------------------------
+            aspectos = res.get("aspectos", [])
+            tem_pendente = False
+            tem_com_pendencia = False
+
+            # Varre os 13 aspectos para checar a real situação
+            for asp in aspectos:
+                st_item = str(asp.get("status", "")).lower()
+                if "insuficiente" in st_item or (
+                    "pendente" in st_item and "com" not in st_item
+                ):
+                    tem_pendente = True
+                elif (
+                    "pendência" in st_item
+                    or "pendencia" in st_item
+                    or "parcial" in st_item
+                ):
+                    tem_com_pendencia = True
+
+            # Define o status geral correto baseado nos 13 critérios
+            if tem_pendente:
+                status_geral_correto = "Pendente"
+                badge_class = "badge-pendente"
+            elif tem_com_pendencia:
+                status_geral_correto = "Analisado com Pendência"
+                badge_class = "badge-compendencia"
+            else:
+                status_geral_correto = "Analisado"
+                badge_class = "badge-adequado"
+
             # 1. CABEÇALHO DO CARD SUPERIOR
-            status_geral = res.get("status_geral", "Pendente")
-            badge_class = "badge-pendente" if "Pendente" in status_geral else ("badge-compendencia" if "Pendência" in status_geral else "badge-adequado")
-            
             st.caption("ANÁLISE CONCLUÍDA")
             col_t1, col_t2 = st.columns([3, 1])
             with col_t1:
                 st.markdown(f"### **{info['Servidor']}**")
             with col_t2:
-                st.markdown(f"<div style='text-align: right;'><span class='{badge_class}'>● {status_geral}</span></div>", unsafe_allow_html=True)
-            
-            st.caption(f"📄 {info['Servidor'].lower().replace(' ', '_')}_rotina.pdf")
+                st.markdown(
+                    f"<div style='text-align: right;'><span class='{badge_class}'>● {status_geral_correto}</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+            st.caption(
+                f"📄 {info['Servidor'].lower().replace(' ', '_')}_rotina.pdf"
+            )
             st.write("")
 
             # 2. CONFRONTO DE EVENTOS DO MÊS
-            st.markdown(f"""
-                <div class='card-eventos'>
-                    <h5 style='color: #a0522d; margin-top:0;'>📅 CONFRONTO DE EVENTOS DO MÊS</h5>
-                    <p style='margin-bottom:0;'>{res.get('confronto_eventos', '')}</p>
-                </div>
-            """, unsafe_allow_html=True)
+            if res.get("confronto_eventos"):
+                st.markdown(
+                    f"""
+                    <div class='card-eventos'>
+                        <h5 style='color: #a0522d; margin-top:0;'>📅 CONFRONTO DE EVENTOS DO MÊS</h5>
+                        <p style='margin-bottom:0;'>{res.get('confronto_eventos', '')}</p>
+                    </div>
+                """,
+                    unsafe_allow_html=True,
+                )
 
             # 3. AVALIAÇÃO DOS 13 ASPECTOS TÉCNICOS
             st.subheader("📝 Avaliação dos 13 Aspectos Técnicos")
-            st.caption("Clique nos itens abaixo para ver a justificativa e evidência de cada um:")
+            st.caption(
+                "Clique nos itens abaixo para ver a justificativa e evidência de cada um:"
+            )
 
-            for asp in res.get("aspectos", []):
-                st_asp = asp.get("status", "Pendente")
-                tag_icon = "🔴" if "Pendente" in st_asp else ("🟡" if "Pendência" in st_asp else "🟢")
-                
-                with st.expander(f"ASPECTO {asp.get('numero')} - {asp.get('titulo')}  |  {tag_icon} {st_asp}"):
+            for asp in aspectos:
+                st_asp = str(asp.get("status", "Pendente"))
+                st_asp_lower = st_asp.lower()
+
+                # Define o ícone de cada expansor
+                if "insuficiente" in st_asp_lower or (
+                    "pendente" in st_asp_lower and "com" not in st_asp_lower
+                ):
+                    tag_icon = "🔴"
+                elif (
+                    "pendência" in st_asp_lower
+                    or "pendencia" in st_asp_lower
+                    or "parcial" in st_asp_lower
+                ):
+                    tag_icon = "🟡"
+                else:
+                    tag_icon = "🟢"
+
+                with st.expander(
+                    f"ASPECTO {asp.get('numero')} - {asp.get('titulo')}  |  {tag_icon} {st_asp}"
+                ):
                     st.markdown("**Análise e Evidência:**")
                     st.write(asp.get("evidencia", "Sem detalhes fornecidos."))
 
             st.write("")
             st.markdown("---")
 
-            # 4. CARD DE SUGESTÃO DE STATUS
-            if "Pendente" in status_geral:
-                st.error(f"❌ **SUGESTÃO DE STATUS DO PARECER: {status_geral.upper()}**\n\nHá pelo menos um dos 13 aspectos considerado insuficiente ou em desacordo grave com as diretrizes do projeto.")
-            elif "Pendência" in status_geral:
-                st.warning(f"⚠️ **SUGESTÃO DE STATUS DO PARECER: {status_geral.upper()}**\n\nExistem aspectos pontuais que necessitam de ajustes do PCPI.")
+            # 4. CARD DE SUGESTÃO DE STATUS (TOTALMENTE SINCRONIZADO)
+            if status_geral_correto == "Pendente":
+                st.error(
+                    f"❌ **SUGESTÃO DE STATUS DO PARECER: {status_geral_correto.upper()}**\n\n"
+                    "Há pelo menos um dos 13 aspectos considerado insuficiente/pendente ou em desacordo com as diretrizes do projeto."
+                )
+            elif status_geral_correto == "Analisado com Pendência":
+                st.warning(
+                    f"⚠️ **SUGESTÃO DE STATUS DO PARECER: {status_geral_correto.upper()}**\n\n"
+                    "Existem aspectos pontuais (parcialmente adequados) que necessitam de ajustes do PCPI."
+                )
             else:
-                st.success(f"✅ **SUGESTÃO DE STATUS DO PARECER: {status_geral.upper()}**\n\nTodos os critérios foram atendidos de forma adequada.")
+                st.success(
+                    f"✅ **SUGESTÃO DE STATUS DO PARECER: {status_geral_correto.upper()}**\n\n"
+                    "Todos os critérios foram atendidos de forma adequada."
+                )
 
             st.write("")
 
             # 5. PARECER SUGERIDO PARA O SGDE
             st.subheader("📝 Sugestão de Parecer para o e-SGDE")
             parecer_texto = res.get("parecer_sugerido", "")
-            
-            st.text_area("Parecer Completo (pronto para copiar):", value=parecer_texto, height=260)
+
+            st.text_area(
+                "Parecer Completo (pronto para copiar):",
+                value=parecer_texto,
+                height=260,
+            )
