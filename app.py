@@ -63,62 +63,213 @@ def verificar_sessao_ativa():
     return False, "00:00"
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA
+# BASE FIXA DE ASSESSORES E PCPIs
+# -----------------------------------------------------------------------------
+ASSESSORES_PCPI = {
+    "LIDIANE OTTONI DA SILVA PETINI": [
+        "DIEGO DA SILVA SOUZA",
+        "ERIKI MILLERLIMA LUIZ PAIVA",
+        "DIEGO LOPES TAVARES",
+        "PATRICIA CONCEICAO VASQUES YAMASHIRO",
+        "JOHNNY ALVES MATTOS",
+        "MARCIA ANDREA DE JESUS PEREIRA TEODORETO",
+    ],
+    "KARLA KAROLINE SERVION MARTINS FERREIRA": [
+        "STEPHANIE DE OLIVEIRA PEREIRA",
+        "NUBIA SOARES LOPES",
+        "JOSE APARECIDO VITORINO",
+        "FERNANDA ISABELA PONTES SILVA ROSA",
+        "CARLOS ALEXANDRE SANTOS DA SILVA",
+        "MARCIELY GONCALVES DA SILVA",
+        "MARIANA THAIS OLIVEIRA BARBOSA",
+    ],
+    "CAROLINE SILVERIO MOSSI": [
+        "ANA PAULA DE BRITO BATISTA",
+        "CLEIDE MARCELINO DE OLIVEIRA",
+        "LARISSA ARRUDA SALVA",
+        "LENNON DE SOUZA MALTA",
+        "MIRIAM BUZZOLO TEIXEIRA",
+        "FABIANA APARECIDA AGUILAR DA SILVA SANTOS",
+        "NATALYA DUTRA ANTUNES BATISTOTE",
+    ],
+    "DIOGO DJALMA DO NASCIMENTO": [
+        "VARNUZ COSTA JUNIOR",
+        "ELIENE DA SILVA GARCETE PEREIRA DE ABREU",
+        "SUELI DA SILVA",
+        "JEAN CARLOS AZEVEDO PENASSO",
+        "SANDRA MARIANO NOGUEIRA",
+        "PEDRO HENRIQUE SIMAS",
+        "MIRIAM BUZZOLO TEIXEIRA",
+        "ANILTON CHIMENES NOGUEIRA",
+        "ELIANE BARROS",
+    ],
+    "GIOVANE IOP REBOUCAS": [
+        "JOAO MATHEUS ALBERTONI MACEDO",
+        "CELIA CENTURION CORDEIRO",
+        "LARISSA MENDES DA ROSA",
+        "ANDRE LUIS SOUZA STELLA",
+        "THAYNARA DAVALO CENTURIAO",
+        "SIDRONIO APARECIDO DIAS BARBOSA",
+        "GRAZIELA MARIA DE CARVALHO",
+    ],
+    "VIDAL AUDALA RODRIGUES": [
+        "ALFA ALMERINDA MOURA DE CAMPOS",
+        "GISLAINE LURDES DOS SANTOS",
+        "VANESCA FERREIRA LIMA MARTINS",
+        "JOSE AUGUSTO FERREIRA DE OLIVEIRA",
+        "MARCOS RIOS NEVES",
+        "JANAINA FELIX DA SILVA",
+        "VINICIUS TEIXEIRA DA SILVA",
+    ],
+    "YARA KAROLINA SANTANA DE MATTOS MESSIAS": [
+        "THIAGO VAREIRO VALERIO",
+        "KAIO CASSIO DELMONDES DIAS",
+        "WELLINGTON SANDIM GLAGAU VIEIRA",
+        "LUANA LALINE RODRIGUES DELFINO",
+        "SABRINA RODRIGUES MARQUES",
+        "RITA DE CASSIA LANZA",
+        "MARCELO GOMES DE SOUZA",
+    ],
+    "CINTIA DE ASSIS FURTADO": [
+        "PAULA BONFIM GOMES FELIX",
+        "EVERTON SOUZA DE QUEIROZ",
+        "VINICIUS CONSTANTINO BARBOSA",
+        "LEILA PEREIRA DE ARAUJO",
+        "LUCAS HENRIQUE GONCALVES DA SILVA",
+        "GISLAINE PINHEIRO PONTES",
+        "RENATA DE FARIA PEREIRA",
+    ],
+    "LEIDE LAURA CENTURION SARAIVA": [
+        "ELAINE CRISTINA MACIEL MIRANDA",
+        "ANDERSON GARCIA",
+        "FELIPE ARRUDA CURCI",
+        "ANTONIA IZABEL DOS SANTOS VILHALVA",
+        "PERSON GOUVEIA DOS SANTOS MOREIRA",
+        "ANI KAROLINI DOS SANTOS DUTRA",
+        "CLEYTON GARCIA DA SILVA",
+    ],
+    "MELISSA ALVES FERREIRA": [
+        "ROBERTO CESAR DE FREITAS",
+        "JORGE ANTONIO DIAS",
+        "CAIO AUGUSTO BORGES GARCIA",
+        "SERGIO ALESANDRO DE MOURA",
+        "JOSE RENE MIRANDA DE SOUSA",
+        "DERICK TRINDADE BEZERRA",
+    ],
+    "ANDRE LUIS GOULART": [
+        "JOAO BATISTA SOARES GALVAO",
+        "DEIVID JOSÉ DA SILVA BRASIL",
+        "FILIPE FERNANDES DA SILVA CUNHA",
+        "TATYANE LEITE GALVAO",
+        "AIDINA MOTA DE SOUZA",
+        "CAROLINE LOPEZ DE BOM LESCANO",
+        "MARCELA REGIANE DA SILVA MESSA",
+        "ERASMO AJALA SABALE",
+    ],
+}
+
+# Inicialização de estados na sessão
+if "logado_sgde" not in st.session_state:
+    st.session_state.logado_sgde = False
+if "assessor_selecionado" not in st.session_state:
+    st.session_state.assessor_selecionado = None
+if "pcpi_selecionado" not in st.session_state:
+    st.session_state.pcpi_selecionado = None
+
+# -----------------------------------------------------------------------------
+# SIDEBAR - PAINEL DE CONTROLE E NAVEGAÇÃO
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] {
-                width: 16.8rem !important;
-                padding-top: 0rem !important;
-            }
-            [data-testid="stSidebar"] > div:first-child {
-                width: 16.8rem !important;
-            }
-            [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-                gap: 0.35rem !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
-    st.subheader("⚙️ Configurações")
-    
-    # Validação do status da API Groq
-    if groq_api_key and groq_api_key.startswith("gsk_"):
-        st.caption("✅ **IA (Groq):** Chave Conectada")
-    elif groq_api_key:
-        st.caption("⚠️ **IA (Groq):** Chave Inválida (deve iniciar com gsk_)")
+    # 1. Status do Login no SGDE (Topo)
+    if st.session_state.logado_sgde:
+        st.caption("🟢 Login SGDE Conectado | ⏰ 60:00")
     else:
-        st.caption("❌ **IA (Groq):** Chave Ausente nos Secrets")
+        st.caption("❌ Login SGDE Desligado | ⏰ 00:00")
 
-    sessao_valida, cronometro_str = verificar_sessao_ativa()
-    if sessao_valida:
-        st.caption(f"✅ **Login SGDE Ligado** | ⏰ {cronometro_str}")
-    else:
-        st.caption("❌ **Login SGDE Desligado** | ⏰ 00:00")
+    # Form de Login
+    with st.expander("🔑 Acesso ao SGDE", expanded=not st.session_state.logado_sgde):
+        usuario_sgde = st.text_input("Usuário SGDE:", key="usr_sgde")
+        senha_sgde = st.text_input("Senha SGDE:", type="password", key="pwd_sgde")
+        if st.button("Conectar ao SGDE", use_container_width=True):
+            if usuario_sgde and senha_sgde:
+                st.session_state.logado_sgde = True
+                st.success("Conectado com sucesso!")
+                st.rerun()
+            else:
+                st.error("Informe usuário e senha.")
 
     st.markdown("---")
 
-    col_usr, col_pwd = st.columns(2)
-    with col_usr:
-        usuario_sgde = st.text_input("Usuário", value="agoulart")
-    with col_pwd:
-        senha_sgde = st.text_input("Senha", type="password")
+    # 2. Seleção do Assessor (Liberado apenas se logado)
+    lista_assessores = ["Selecione um Assessor..."] + list(ASSESSORES_PCPI.keys())
+    assessor_escolhido = st.selectbox(
+        "👤 Selecione o Assessor:",
+        options=lista_assessores,
+        disabled=not st.session_state.logado_sgde,
+        key="sb_assessor"
+    )
 
-    assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
+    # Atualiza o estado do assessor
+    if assessor_escolhido != "Selecione um Assessor...":
+        st.session_state.assessor_selecionado = assessor_escolhido
+    else:
+        st.session_state.assessor_selecionado = None
+
+    # 3. Seleção do PCPI (Liberado apenas se Assessor for selecionado)
+    tem_assessor = st.session_state.assessor_selecionado is not None
     
-    col_mes, col_ano = st.columns([1.6, 1])
+    if tem_assessor:
+        pcpis_do_assessor = ASSESSORES_PCPI.get(st.session_state.assessor_selecionado, [])
+        opcoes_pcpi = ["Todos"] + pcpis_do_assessor
+    else:
+        opcoes_pcpi = ["Selecione um Assessor primeiro..."]
+
+    pcpi_escolhido = st.selectbox(
+        "💻 Selecione o PCPI / PROGETEC:",
+        options=opcoes_pcpi,
+        disabled=not tem_assessor,
+        key="sb_pcpi"
+    )
+
+    # Atualiza o estado do PCPI
+    if tem_assessor and pcpi_escolhido:
+        st.session_state.pcpi_selecionado = pcpi_escolhido
+    else:
+        st.session_state.pcpi_selecionado = None
+
+    # 4. Seleção de Mês e Ano (Liberado apenas se PCPI/Todos for definido)
+    tem_pcpi = st.session_state.pcpi_selecionado is not None
+
+    col_mes, col_ano = st.columns(2)
     with col_mes:
-        meses_opcoes = [
-            "06 - JUNHO", "07 - JULHO", 
-            "08 - AGOSTO", "09 - SETEMBRO"
-        ]
-        vigencia_ref = st.selectbox("Mês", meses_opcoes, index=1)
+        mes_escolhido = st.selectbox(
+            "📅 Mês:",
+            options=["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
+                     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],
+            index=5,  # Junho por padrão
+            disabled=not tem_pcpi,
+            key="sb_mes"
+        )
     with col_ano:
-        ano_ref = st.selectbox("Ano", ["2026", "2025"])
+        ano_escolhido = st.selectbox(
+            "📆 Ano:",
+            options=[2026, 2025, 2024],
+            disabled=not tem_pcpi,
+            key="sb_ano"
+        )
 
     st.write("")
-    btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
+
+    # 5. Botão Buscar Rotina
+    btn_buscar = st.button(
+        "🔍 Buscar Rotina",
+        type="primary",
+        use_container_width=True,
+        disabled=not tem_pcpi
+    )
+
+    if btn_buscar:
+        st.session_state.executar_busca = True
 
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
