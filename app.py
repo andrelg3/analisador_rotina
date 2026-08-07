@@ -1,11 +1,12 @@
+import asyncio
+import json
 import os
 import re
 import time
-import asyncio
-import requests
 import pandas as pd
-import streamlit as st
 from playwright.async_api import async_playwright
+import requests
+import streamlit as st
 import streamlit.components.v1 as components
 
 # Instala o navegador Chromium para o Playwright
@@ -15,7 +16,7 @@ st.set_page_config(
     page_title="Analisador de Rotina PCPI",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # -----------------------------------------------------------------------------
@@ -24,10 +25,12 @@ st.set_page_config(
 empresa_sgde = "SED.MS"
 
 # Leitura flexível da chave da Groq no Secrets do Streamlit
-groq_api_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
+groq_api_key = (
+    st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
+)
 
 # -----------------------------------------------------------------------------
-# ESTADOS DA SESSÃO
+# ESTADOS DA SESSÃO E CRONÔMETRO
 # -----------------------------------------------------------------------------
 if "rotinas_carregadas" not in st.session_state:
     st.session_state.rotinas_carregadas = None
@@ -49,6 +52,7 @@ if "resultado_ia" not in st.session_state:
 
 TEMPO_LIMITE_SESSAO = 15 * 60  # 15 minutos em segundos
 
+
 def verificar_sessao_ativa():
     if st.session_state.sgde_cookies and st.session_state.sgde_login_time > 0:
         tempo_decorrido = time.time() - st.session_state.sgde_login_time
@@ -57,32 +61,52 @@ def verificar_sessao_ativa():
             minutos = tempo_restante // 60
             segundos = tempo_restante % 60
             return True, f"{minutos:02d}:{segundos:02d}"
-    
+
     st.session_state.sgde_cookies = None
     st.session_state.sgde_login_time = 0
     return False, "00:00"
+
+
+# -----------------------------------------------------------------------------
+# ESTILOS CSS PARA SUBIR O TÍTULO E AJUSTAR A SIDEBAR
+# -----------------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+        /* Oculta o cabeçalho padrao do Streamlit para o título subir */
+        [data-testid="stHeader"] {
+            height: 0px !important;
+            background: transparent !important;
+        }
+        /* Ajusta o padding superior da página principal */
+        .block-container {
+            padding-top: 0.8rem !important;
+            padding-bottom: 1rem !important;
+        }
+        /* Ajustes visuais da Sidebar */
+        [data-testid="stSidebar"] {
+            width: 17rem !important;
+        }
+        [data-testid="stSidebarHeader"] {
+            display: none !important;
+        }
+        [data-testid="stSidebarUserContent"] {
+            padding-top: 0.5rem !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+            gap: 0.35rem !important;
+        }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
 # -----------------------------------------------------------------------------
 # BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] {
-                width: 16.8rem !important;
-                padding-top: 0rem !important;
-            }
-            [data-testid="stSidebar"] > div:first-child {
-                width: 16.8rem !important;
-            }
-            [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-                gap: 0.35rem !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
     st.subheader("⚙️ Configurações")
-    
+
     # Validação do status da API Groq
     if groq_api_key and groq_api_key.startswith("gsk_"):
         st.caption("✅ **IA (Groq):** Chave Conectada")
@@ -93,7 +117,7 @@ with st.sidebar:
 
     sessao_valida, cronometro_str = verificar_sessao_ativa()
     if sessao_valida:
-        st.caption(f"✅ **Login SGDE Ligado** | ⏰ {cronometro_str}")
+        st.caption(f"🟢 **Login SGDE Ligado** | ⏰ {cronometro_str}")
     else:
         st.caption("❌ **Login SGDE Desligado** | ⏰ 00:00")
 
@@ -106,71 +130,110 @@ with st.sidebar:
         senha_sgde = st.text_input("Senha", type="password")
 
     assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
-    
+
     col_mes, col_ano = st.columns([1.6, 1])
     with col_mes:
         meses_opcoes = [
-            "06 - JUNHO", "07 - JULHO", 
-            "08 - AGOSTO", "09 - SETEMBRO"
+            "06 - JUNHO",
+            "07 - JULHO",
+            "08 - AGOSTO",
+            "09 - SETEMBRO",
         ]
         vigencia_ref = st.selectbox("Mês", meses_opcoes, index=1)
     with col_ano:
         ano_ref = st.selectbox("Ano", ["2026", "2025"])
 
     st.write("")
-    btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
+    btn_buscar = st.button(
+        "🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True
+    )
 
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
 # -----------------------------------------------------------------------------
 st.title("🤖 Analisador de Rotinas PCPI - SGDE")
-st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique em **Ver Rotina** para visualizar os detalhes.")
+st.write(
+    "Selecione os filtros no menu lateral para buscar as rotinas e clique em **Ver Rotina** para visualizar os detalhes."
+)
+
 
 # -----------------------------------------------------------------------------
 # FUNÇÃO PARA EXTRAIR E FORMATAR O TEXTO BRUTO EM DATAFRAME
 # -----------------------------------------------------------------------------
 def processar_texto_rotina(texto_bruto):
-    padrao = r'(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)'
-    
+    padrao = r"(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)"
+
     inicio = texto_bruto.find("DESCRIÇÃO DA ROTINA")
     fim = texto_bruto.find("Parecer", inicio if inicio != -1 else 0)
-    
-    bloco_util = texto_bruto[inicio:fim] if inicio != -1 and fim != -1 else texto_bruto
-    
+
+    bloco_util = (
+        texto_bruto[inicio:fim]
+        if inicio != -1 and fim != -1
+        else texto_bruto
+    )
+
     registros = []
     matches = re.findall(padrao, bloco_util, re.DOTALL)
-    
+
     for data, turno, descricao in matches:
         desc_limpa = " ".join(descricao.split())
-        registros.append({
-            "Data": data,
-            "Turno": turno,
-            "Descrição da Rotina": desc_limpa
-        })
-        
+        registros.append(
+            {"Data": data, "Turno": turno, "Descrição da Rotina": desc_limpa}
+        )
+
     return pd.DataFrame(registros)
 
+
 # -----------------------------------------------------------------------------
-# ETAPA 1: APENAS LISTAR AS ROTINAS (CÓDIGO ESTÁVEL)
+# HELPER DE PREENCHIMENTO RESILIENTE DE SELECT2
 # -----------------------------------------------------------------------------
-async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia, log_container):
+async def preencher_select2(target_frame, index_dropdown, texto_busca, page):
+    dropdowns = await target_frame.query_selector_all("a.select2-choice")
+    if len(dropdowns) > index_dropdown:
+        await dropdowns[index_dropdown].click()
+        await page.wait_for_timeout(300)
+
+        input_busca = await target_frame.query_selector(
+            ".select2-search input.select2-input:visible"
+        )
+        if input_busca:
+            await input_busca.fill(str(texto_busca))
+            await page.wait_for_timeout(400)
+            await input_busca.press("Enter")
+        else:
+            opcao = await target_frame.wait_for_selector(
+                f".select2-result-label:has-text('{texto_busca}')", timeout=3000
+            )
+            await opcao.click()
+
+
+# -----------------------------------------------------------------------------
+# ETAPA 1: APENAS LISTAR AS ROTINAS
+# -----------------------------------------------------------------------------
+async def buscar_lista_rotinas(
+    usuario, senha, empresa, assessor, ano, vigencia, log_container
+):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
         sessao_valida, _ = verificar_sessao_ativa()
-        
+
         if sessao_valida and st.session_state.sgde_cookies:
             log_container.write("⚡ Usando sessão ativa do SGDE...")
             await context.add_cookies(st.session_state.sgde_cookies)
         else:
             if not senha:
                 await browser.close()
-                raise Exception("Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login.")
-            
+                raise Exception(
+                    "Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login."
+                )
+
             log_container.write("🔑 Efetuando login no SGDE...")
             page = await context.new_page()
-            await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
+            await page.goto(
+                "https://www.sgde.ms.gov.br/", wait_until="networkidle"
+            )
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
@@ -184,7 +247,10 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
 
         try:
             log_container.write("📍 Acessando tela de Análise de Rotina...")
-            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
+            await page.goto(
+                "https://www.sgde.ms.gov.br/progetec/rotinaAnalise",
+                wait_until="domcontentloaded",
+            )
             await page.wait_for_timeout(3000)
 
             target_frame = page
@@ -195,26 +261,45 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                         break
 
             log_container.write("🔍 Aplicando filtros de busca...")
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
+
+            # 1. Assessor
+            simular_box = await target_frame.wait_for_selector(
+                "div[name='multiplicadorNte']", timeout=20000
+            )
             await simular_box.click()
-            await target_frame.fill(".select2-search input.select2-input:visible", assessor)
-            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
+            input_assessor = await target_frame.wait_for_selector(
+                ".select2-search input.select2-input:visible", timeout=5000
+            )
+            await input_assessor.fill(assessor)
+            await page.wait_for_timeout(400)
+            await input_assessor.press("Enter")
 
-            dropdowns = await target_frame.query_selector_all("a.select2-choice")
-            if len(dropdowns) >= 4:
-                await dropdowns[3].click()
-                await target_frame.click(f".select2-result-label:has-text('{ano}')")
+            # Tratamento da vigência: Extrai apenas o nome do mês (ex: "JULHO" de "07 - JULHO")
+            mes_limpo = (
+                vigencia.split("-")[-1].strip()
+                if "-" in vigencia
+                else vigencia.strip()
+            )
 
-            if len(dropdowns) >= 5:
-                await dropdowns[4].click()
-                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
+            # 2. Ano e 3. Mês
+            await preencher_select2(target_frame, 3, str(ano), page)
+            await preencher_select2(target_frame, 4, mes_limpo, page)
 
             log_container.write("🚀 Pesquisando rotinas...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
             await page.wait_for_timeout(2000)
-            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
-            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
+
+            try:
+                await target_frame.wait_for_selector(
+                    ".cg-busy-backdrop", state="hidden", timeout=15000
+                )
+            except Exception:
+                pass
+
+            await target_frame.wait_for_selector(
+                ".ui-grid-row", timeout=20000
+            )
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             log_container.write(f"📋 Mapeando {len(linhas)} rotina(s)...")
@@ -222,18 +307,28 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             lista_rotinas = []
             for index, linha in enumerate(linhas):
                 texto_linha = await linha.inner_text()
-                colunas = [col.strip() for col in texto_linha.split('\n') if col.strip()]
-                
+                colunas = [
+                    col.strip()
+                    for col in texto_linha.split("\n")
+                    if col.strip()
+                ]
+
                 escola = colunas[1] if len(colunas) > 1 else "Escola N/I"
-                servidor = colunas[2] if len(colunas) > 2 else f"Servidor #{index+1}"
+                servidor = (
+                    colunas[2]
+                    if len(colunas) > 2
+                    else f"Servidor #{index+1}"
+                )
                 situacao = colunas[5] if len(colunas) > 5 else "N/I"
 
-                lista_rotinas.append({
-                    "Index": index,
-                    "Unidade Escolar": escola,
-                    "Servidor": servidor,
-                    "Situação": situacao
-                })
+                lista_rotinas.append(
+                    {
+                        "Index": index,
+                        "Unidade Escolar": escola,
+                        "Servidor": servidor,
+                        "Situação": situacao,
+                    }
+                )
 
             await browser.close()
             return lista_rotinas
@@ -242,10 +337,20 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             await browser.close()
             raise Exception(f"Erro ao listar rotinas: {str(e)}")
 
+
 # -----------------------------------------------------------------------------
-# ETAPA 2: EXTRAIR A ROTINA SELECIONADA (CÓDIGO ESTÁVEL)
+# ETAPA 2: EXTRAIR A ROTINA SELECIONADA
 # -----------------------------------------------------------------------------
-async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vigencia, index_escolhido, log_container):
+async def extrair_rotina_especifica(
+    usuario,
+    senha,
+    empresa,
+    assessor,
+    ano,
+    vigencia,
+    index_escolhido,
+    log_container,
+):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
@@ -258,11 +363,15 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         else:
             if not senha:
                 await browser.close()
-                raise Exception("Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login.")
-            
+                raise Exception(
+                    "Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login."
+                )
+
             log_container.write("🔑 Efetuando login no SGDE...")
             page = await context.new_page()
-            await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
+            await page.goto(
+                "https://www.sgde.ms.gov.br/", wait_until="networkidle"
+            )
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
@@ -275,7 +384,10 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         page = await context.new_page()
 
         try:
-            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
+            await page.goto(
+                "https://www.sgde.ms.gov.br/progetec/rotinaAnalise",
+                wait_until="domcontentloaded",
+            )
             await page.wait_for_timeout(3000)
 
             target_frame = page
@@ -285,32 +397,53 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                         target_frame = frame
                         break
 
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
+            # Assessor
+            simular_box = await target_frame.wait_for_selector(
+                "div[name='multiplicadorNte']", timeout=20000
+            )
             await simular_box.click()
-            await target_frame.fill(".select2-search input.select2-input:visible", assessor)
-            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
+            input_assessor = await target_frame.wait_for_selector(
+                ".select2-search input.select2-input:visible", timeout=5000
+            )
+            await input_assessor.fill(assessor)
+            await page.wait_for_timeout(400)
+            await input_assessor.press("Enter")
 
-            dropdowns = await target_frame.query_selector_all("a.select2-choice")
-            if len(dropdowns) >= 4:
-                await dropdowns[3].click()
-                await target_frame.click(f".select2-result-label:has-text('{ano}')")
+            # Mês puro
+            mes_limpo = (
+                vigencia.split("-")[-1].strip()
+                if "-" in vigencia
+                else vigencia.strip()
+            )
 
-            if len(dropdowns) >= 5:
-                await dropdowns[4].click()
-                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
+            await preencher_select2(target_frame, 3, str(ano), page)
+            await preencher_select2(target_frame, 4, mes_limpo, page)
 
             await target_frame.click("input[ng-click='pesquisar()']")
             await page.wait_for_timeout(2000)
-            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
-            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
+
+            try:
+                await target_frame.wait_for_selector(
+                    ".cg-busy-backdrop", state="hidden", timeout=15000
+                )
+            except Exception:
+                pass
+
+            await target_frame.wait_for_selector(
+                ".ui-grid-row", timeout=20000
+            )
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
-            
+
             if index_escolhido < len(linhas):
-                log_container.write(f"🎯 Abrindo rotina #{index_escolhido + 1}...")
+                log_container.write(
+                    f"🎯 Abrindo rotina #{index_escolhido + 1}..."
+                )
                 linha_alvo = linhas[index_escolhido]
-                
-                botao_analisar = await linha_alvo.query_selector("input[title='Analisar'], input[ng-click*='analisar']")
+
+                botao_analisar = await linha_alvo.query_selector(
+                    "input[title='Analisar'], input[ng-click*='analisar']"
+                )
                 if botao_analisar:
                     await botao_analisar.click()
                 else:
@@ -320,8 +453,10 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                 await page.wait_for_timeout(4000)
 
                 try:
-                    await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=10000)
-                except:
+                    await target_frame.wait_for_selector(
+                        ".cg-busy-backdrop", state="hidden", timeout=10000
+                    )
+                except Exception:
                     pass
 
                 texto_bruto = await target_frame.inner_text("body")
@@ -335,16 +470,19 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
             await browser.close()
             raise Exception(f"Erro ao extrair detalhes: {str(e)}")
 
-import json
 
 # -----------------------------------------------------------------------------
 # ETAPA 3: ANALISAR COM IA (RETORNANDO JSON PARA O LAYOUT)
 # -----------------------------------------------------------------------------
 def executar_analise_ia(df_rotina, nome_servidor, eventos_mes):
-    chave = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
+    chave = (
+        st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key") or ""
+    )
 
     if not chave:
-        raise Exception("A chave da API da Groq não foi encontrada nos Secrets.")
+        raise Exception(
+            "A chave da API da Groq não foi encontrada nos Secrets."
+        )
 
     rotina_texto = df_rotina.to_string(index=False)
 
@@ -418,25 +556,33 @@ O campo 'status' (tanto geral quanto dos aspectos) deve ser APENAS um destes val
 """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {chave}", "Content-Type": "application/json"}
-    
+    headers = {
+        "Authorization": f"Bearer {chave}",
+        "Content-Type": "application/json",
+    }
+
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"},
-        "temperature": 0.2
+        "temperature": 0.2,
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=45)
+        response = requests.post(
+            url, headers=headers, json=payload, timeout=45
+        )
         res_data = response.json()
         if response.status_code == 200:
-            content = res_data['choices'][0]['message']['content']
+            content = res_data["choices"][0]["message"]["content"]
             return json.loads(content)
         else:
-            raise Exception(res_data.get('error', {}).get('message', 'Erro na IA'))
+            raise Exception(
+                res_data.get("error", {}).get("message", "Erro na IA")
+            )
     except Exception as e:
         raise Exception(f"Erro ao processar análise em JSON: {str(e)}")
+
 
 # -----------------------------------------------------------------------------
 # EXECUÇÃO DO BOTÃO BUSCAR ROTINAS
@@ -444,64 +590,99 @@ O campo 'status' (tanto geral quanto dos aspectos) deve ser APENAS um destes val
 if btn_buscar:
     log_status = st.status("Iniciando busca no SGDE...", expanded=True)
     try:
-        resultado = asyncio.run(buscar_lista_rotinas(
-            usuario_sgde, senha_sgde, empresa_sgde, 
-            assessor_nome, ano_ref, vigencia_ref, log_status
-        ))
+        resultado = asyncio.run(
+            buscar_lista_rotinas(
+                usuario_sgde,
+                senha_sgde,
+                empresa_sgde,
+                assessor_nome,
+                ano_ref,
+                vigencia_ref,
+                log_status,
+            )
+        )
         st.session_state.rotinas_carregadas = resultado
-        log_status.update(label="Rotinas listadas com sucesso!", state="complete", expanded=False)
+        log_status.update(
+            label="Rotinas listadas com sucesso!",
+            state="complete",
+            expanded=False,
+        )
     except Exception as e:
-        log_status.update(label="Erro durante a busca.", state="error", expanded=True)
+        log_status.update(
+            label="Erro durante a busca.", state="error", expanded=True
+        )
         st.error(f"Erro: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# EXIBIÇÃO DA LISTA DE ROTINAS (COM CONTADOR)
+# EXIBIÇÃO DA LISTA DE ROTINAS
 # -----------------------------------------------------------------------------
 if st.session_state.rotinas_carregadas is not None:
     qtd_rotinas = len(st.session_state.rotinas_carregadas)
     st.subheader(f"📋 Rotinas Encontradas ({qtd_rotinas})")
-    
+
     df_lista = pd.DataFrame(st.session_state.rotinas_carregadas)
-    
+
     for idx, row in df_lista.iterrows():
         col_esc, col_serv, col_sit, col_btn = st.columns([3, 3, 2, 2])
         col_esc.write(f"**{row['Unidade Escolar']}**")
         col_serv.write(row["Servidor"])
         col_sit.write(row["Situação"])
-        
+
         if col_btn.button("Ver Rotina", key=f"btn_rotina_{row['Index']}"):
-            log_ext = st.status(f"Buscando detalhes da rotina de {row['Servidor']}...", expanded=True)
+            log_ext = st.status(
+                f"Buscando detalhes da rotina de {row['Servidor']}...",
+                expanded=True,
+            )
             try:
-                texto_bruto = asyncio.run(extrair_rotina_especifica(
-                    usuario_sgde, senha_sgde, empresa_sgde, 
-                    assessor_nome, ano_ref, vigencia_ref, row["Index"], log_ext
-                ))
-                
+                texto_bruto = asyncio.run(
+                    extrair_rotina_especifica(
+                        usuario_sgde,
+                        senha_sgde,
+                        empresa_sgde,
+                        assessor_nome,
+                        ano_ref,
+                        vigencia_ref,
+                        row["Index"],
+                        log_ext,
+                    )
+                )
+
                 df_detalhado = processar_texto_rotina(texto_bruto)
                 st.session_state.df_rotina_detalhada = df_detalhado
-                
-                # Salva como dicionário nativo Python para evitar o erro de 'bool' do Pandas
                 st.session_state.rotina_selecionada_info = row.to_dict()
-                st.session_state.resultado_ia = None  # Limpa análise anterior
-                
-                log_ext.update(label="Rotina extraída com sucesso!", state="complete", expanded=False)
+                st.session_state.resultado_ia = None
+
+                log_ext.update(
+                    label="Rotina extraída com sucesso!",
+                    state="complete",
+                    expanded=False,
+                )
                 st.rerun()
             except Exception as e:
-                log_ext.update(label="Erro ao extrair rotina.", state="error", expanded=True)
+                log_ext.update(
+                    label="Erro ao extrair rotina.",
+                    state="error",
+                    expanded=True,
+                )
                 st.error(f"Erro: {str(e)}")
 
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
 # -----------------------------------------------------------------------------
-if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_selecionada_info is not None:
+if (
+    st.session_state.df_rotina_detalhada is not None
+    and st.session_state.rotina_selecionada_info is not None
+):
     info = st.session_state.rotina_selecionada_info
     df = st.session_state.df_rotina_detalhada
 
     st.markdown("---")
     st.markdown("<div id='secao-detalhamento'></div>", unsafe_allow_html=True)
-    
+
     st.header(f"📄 Detalhamento da Rotina: {info['Servidor']}")
-    st.caption(f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}")
+    st.caption(
+        f"Unidade Escolar: {info['Unidade Escolar']} | Situação: {info['Situação']}"
+    )
 
     if not df.empty:
         h1, h2, h3 = st.columns([1.2, 1.2, 7.6])
@@ -515,42 +696,55 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
             c_data.markdown(f"**{row['Data']}**")
             c_turno.write(row["Turno"])
             c_desc.write(row["Descrição da Rotina"])
-            st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
+            st.markdown(
+                "<hr style='margin: 8px 0; border: none; border-top: 1px solid #eee;'>",
+                unsafe_allow_html=True,
+            )
 
         st.markdown("---")
-        
-        # CAMPO PARA EVENTOS DO MÊS E BOTÃO DA IA
+
         st.subheader("📅 Eventos e Calendário do Mês")
-        st.caption("Cole abaixo os eventos específicos do mês (ex: dias letivos, reuniões, feriados, formações) para a IA considerar na avaliação:")
-        
+        st.caption(
+            "Cole abaixo os eventos específicos do mês (ex: dias letivos, reuniões, feriados, formações) para a IA considerar na avaliação:"
+        )
+
         eventos_input = st.text_area(
-            "Eventos do Mês",
-            value=" ",
-            height=130
+            "Eventos do Mês", value=" ", height=130
         )
 
         st.write("")
-        btn_analisar_ia = st.button("🤖 Analisar com IA", type="primary", use_container_width=True)
+        btn_analisar_ia = st.button(
+            "🤖 Analisar com IA", type="primary", use_container_width=True
+        )
 
         if btn_analisar_ia:
-            status_ia = st.status("A IA (Groq - Llama 3.3) está analisando...", expanded=True)
+            status_ia = st.status(
+                "A IA (Groq - Llama 3.3) está analisando...", expanded=True
+            )
             try:
-                resultado = executar_analise_ia(df, info['Servidor'], eventos_input)
+                resultado = executar_analise_ia(
+                    df, info["Servidor"], eventos_input
+                )
                 st.session_state.resultado_ia = resultado
-                status_ia.update(label="Análise realizada com sucesso!", state="complete", expanded=False)
+                status_ia.update(
+                    label="Análise realizada com sucesso!",
+                    state="complete",
+                    expanded=False,
+                )
                 st.rerun()
             except Exception as e:
-                status_ia.update(label="Erro durante o teste.", state="error", expanded=True)
+                status_ia.update(
+                    label="Erro durante o teste.", state="error", expanded=True
+                )
                 st.error(f"Erro: {str(e)}")
 
-       # EXIBIÇÃO DO RESULTADO DA IA ESTILIZADO (IGUAL AOS PRINTS)
         if st.session_state.resultado_ia:
             res = st.session_state.resultado_ia
-            
+
             st.markdown("---")
-            
-            # CSS Personalizado para badges, cards e caixas
-            st.markdown("""
+
+            st.markdown(
+                """
                 <style>
                     .card-box {
                         background-color: #f8f9fa;
@@ -595,16 +789,14 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
                         border: 1px solid #c8e6c9;
                     }
                 </style>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
-            # -----------------------------------------------------------------------------
-            # REVALIDAÇÃO AUTOMÁTICA DO STATUS GERAL VIA PYTHON (GARANTE CONSISTÊNCIA)
-            # -----------------------------------------------------------------------------
             aspectos = res.get("aspectos", [])
             tem_pendente = False
             tem_com_pendencia = False
 
-            # Varre os 13 aspectos para checar a real situação
             for asp in aspectos:
                 st_item = str(asp.get("status", "")).lower()
                 if "insuficiente" in st_item or (
@@ -618,7 +810,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
                 ):
                     tem_com_pendencia = True
 
-            # Define o status geral correto baseado nos 13 critérios
             if tem_pendente:
                 status_geral_correto = "Pendente"
                 badge_class = "badge-pendente"
@@ -629,7 +820,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
                 status_geral_correto = "Analisado"
                 badge_class = "badge-adequado"
 
-            # 1. CABEÇALHO DO CARD SUPERIOR
             st.caption("ANÁLISE CONCLUÍDA")
             col_t1, col_t2 = st.columns([3, 1])
             with col_t1:
@@ -645,7 +835,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
             )
             st.write("")
 
-            # 2. CONFRONTO DE EVENTOS DO MÊS
             if res.get("confronto_eventos"):
                 st.markdown(
                     f"""
@@ -657,7 +846,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
                     unsafe_allow_html=True,
                 )
 
-            # 3. AVALIAÇÃO DOS 13 ASPECTOS TÉCNICOS
             st.subheader("📝 Avaliação dos 13 Aspectos Técnicos")
             st.caption(
                 "Clique nos itens abaixo para ver a justificativa e evidência de cada um:"
@@ -667,7 +855,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
                 st_asp = str(asp.get("status", "Pendente"))
                 st_asp_lower = st_asp.lower()
 
-                # Define o ícone de cada expansor
                 if "insuficiente" in st_asp_lower or (
                     "pendente" in st_asp_lower and "com" not in st_asp_lower
                 ):
@@ -690,7 +877,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
             st.write("")
             st.markdown("---")
 
-            # 4. CARD DE SUGESTÃO DE STATUS (TOTALMENTE SINCRONIZADO)
             if status_geral_correto == "Pendente":
                 st.error(
                     f"❌ **SUGESTÃO DE STATUS DO PARECER: {status_geral_correto.upper()}**\n\n"
@@ -709,7 +895,6 @@ if st.session_state.df_rotina_detalhada is not None and st.session_state.rotina_
 
             st.write("")
 
-            # 5. PARECER SUGERIDO PARA O SGDE
             st.subheader("📝 Sugestão de Parecer para o e-SGDE")
             parecer_texto = res.get("parecer_sugerido", "")
 
