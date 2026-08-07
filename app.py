@@ -62,14 +62,30 @@ def verificar_sessao_ativa():
     st.session_state.sgde_login_time = 0
     return False, "00:00"
 
+import streamlit as st
+
 # -----------------------------------------------------------------------------
-# AJUSTE DE LARGURA DA SIDEBAR (-20%)
+# AJUSTES VISUAIS DA SIDEBAR (LARGURA E ESPAÇAMENTOS REDUZIDOS)
 # -----------------------------------------------------------------------------
 st.markdown(
     """
     <style>
+        /* Largura da Sidebar (-20%) */
         [data-testid="stSidebar"] {
             width: 270px !important;
+        }
+        /* Reduz o topo da sidebar */
+        [data-testid="stSidebar"] > div:first-child {
+            padding-top: 1rem !important;
+        }
+        /* Compacta o espaçamento vertical geral da sidebar */
+        [data-testid="stSidebar"] .element-container {
+            margin-bottom: 0.3rem !important;
+        }
+        /* Reduz o espaçamento das linhas divisórias (hr) */
+        [data-testid="stSidebar"] hr {
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
         }
     </style>
 """,
@@ -244,7 +260,7 @@ with st.sidebar:
         key="sb_assessor",
     )
 
-    # Sincroniza a variável 'assessor_nome' esperada pelo resto do código
+    # Sincroniza a variável 'assessor_nome' esperada pelo código
     if assessor_escolhido != "Selecione um Assessor...":
         st.session_state.assessor_nome = assessor_escolhido
         assessor_nome = assessor_escolhido
@@ -276,12 +292,12 @@ with st.sidebar:
     else:
         st.session_state.pcpi_selecionado = None
 
-    # 4. Seleção de Mês e Ano
+    # 4. Seleção de Mês e Ano (Sincroniza mes_ref e ano_ref para evitar o erro NameError)
     tem_pcpi = st.session_state.pcpi_selecionado is not None
 
     col_mes, col_ano = st.columns(2)
     with col_mes:
-        mes_escolhido = st.selectbox(
+        mes_ref = st.selectbox(
             "📅 Mês:",
             options=[
                 "Janeiro",
@@ -302,9 +318,13 @@ with st.sidebar:
             key="sb_mes",
         )
     with col_ano:
-        ano_escolhido = st.selectbox(
+        ano_ref = st.selectbox(
             "📆 Ano:", options=[2026, 2025, 2024], disabled=not tem_pcpi, key="sb_ano"
         )
+
+    # Garante a persistência de mes_ref e ano_ref no session_state
+    st.session_state.mes_ref = mes_ref
+    st.session_state.ano_ref = ano_ref
 
     st.write("")
 
@@ -318,6 +338,7 @@ with st.sidebar:
 
     if btn_buscar:
         st.session_state.executar_busca = True
+        
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
 # -----------------------------------------------------------------------------
