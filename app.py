@@ -478,76 +478,83 @@ async def buscar_lista_rotinas(
 
             log_container.write("🔍 Aplicando filtros de busca...")
 
-            # 1. Assessor / Multiplicador
+            # -----------------------------------------------------------------
+            # 1. SELEÇÃO DO ASSESSOR
+            # -----------------------------------------------------------------
             simular_box = await target_frame.wait_for_selector(
                 "div[name='multiplicadorNte']", timeout=20000
             )
             await simular_box.click()
-            await target_frame.fill(
-                ".select2-search input.select2-input:visible", assessor
-            )
-            await target_frame.wait_for_selector(
-                ".select2-highlighted, .select2-result-label", timeout=5000
-            )
-            await target_frame.click(
-                f".select2-result-label:has-text('{assessor}')"
-            )
 
+            input_assessor = await target_frame.wait_for_selector(
+                ".select2-search input.select2-input:visible", timeout=5000
+            )
+            await input_assessor.fill(assessor)
+            await page.wait_for_timeout(500)
+            await input_assessor.press("Enter")
+
+            # -----------------------------------------------------------------
+            # DROPDOWNS SECUNDÁRIOS (ANO E MES/VIGÊNCIA)
+            # -----------------------------------------------------------------
             dropdowns = await target_frame.query_selector_all(
                 "a.select2-choice"
             )
 
-            # 2. Seleção do Ano
+            # -----------------------------------------------------------------
+            # 2. SELEÇÃO DO ANO (Dropdown index 3)
+            # -----------------------------------------------------------------
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
-                await target_frame.wait_for_selector(
-                    ".select2-search input.select2-input:visible", timeout=3000
-                )
-                await target_frame.fill(
-                    ".select2-search input.select2-input:visible", str(ano)
-                )
-                await target_frame.click(
-                    f".select2-result-label:has-text('{ano}')", timeout=5000
-                )
+                await page.wait_for_timeout(300)
 
-            # 3. Seleção do Mês (Trata a variável vigencia para usar SOMENTE o nome do Mês)
+                input_ano = await target_frame.wait_for_selector(
+                    ".select2-search input.select2-input:visible", timeout=5000
+                )
+                await input_ano.fill(str(ano))
+                await page.wait_for_timeout(500)
+                await input_ano.press("Enter")
+
+            # -----------------------------------------------------------------
+            # 3. SELEÇÃO DA VIGÊNCIA / MÊS (Dropdown index 4)
+            # -----------------------------------------------------------------
             if len(dropdowns) >= 5:
-                # Se vigencia for "Julho/2026", pega apenas "Julho"
-                mes_limpo = (
+                # Trata a vigência para enviar tanto 'Julho' quanto 'Julho/2026' se necessário
+                mes_puro = (
                     str(vigencia).split("/")[0].strip()
                     if "/" in str(vigencia)
                     else str(vigencia).strip()
                 )
 
                 await dropdowns[4].click()
-                await target_frame.wait_for_selector(
-                    ".select2-search input.select2-input:visible", timeout=3000
+                await page.wait_for_timeout(300)
+
+                input_mes = await target_frame.wait_for_selector(
+                    ".select2-search input.select2-input:visible", timeout=5000
                 )
 
-                # Digita na caixa de busca do Select2 e aguarda o item
-                await target_frame.fill(
-                    ".select2-search input.select2-input:visible", mes_limpo
-                )
-                await page.wait_for_timeout(500)
+                # Tenta primeiro filtrar digitando apenas o Mês
+                await input_mes.fill(mes_puro)
+                await page.wait_for_timeout(600)
 
-                # Clica diretamente no item pesquisado/destacado para evitar erro de string exata
-                try:
-                    await target_frame.click(
-                        ".select2-highlighted", timeout=3000
-                    )
-                except Exception:
-                    await target_frame.click(
-                        f".select2-result-label:has-text('{mes_limpo}')",
-                        timeout=5000,
-                    )
+                # Pressiona Enter para confirmar a opção filtrada no Select2
+                await input_mes.press("Enter")
 
+            # -----------------------------------------------------------------
+            # 4. PESQUISA E CARREGAMENTO
+            # -----------------------------------------------------------------
             log_container.write("🚀 Pesquisando rotinas...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
             await page.wait_for_timeout(2000)
-            await target_frame.wait_for_selector(
-                ".cg-busy-backdrop", state="hidden", timeout=20000
-            )
+
+            # Aguarda a camada de carregamento do Angular sumir
+            try:
+                await target_frame.wait_for_selector(
+                    ".cg-busy-backdrop", state="hidden", timeout=15000
+                )
+            except Exception:
+                pass
+
             await target_frame.wait_for_selector(
                 ".ui-grid-row", timeout=20000
             )
