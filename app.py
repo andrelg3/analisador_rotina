@@ -63,165 +63,26 @@ def verificar_sessao_ativa():
     return False, "00:00"
 
 # -----------------------------------------------------------------------------
-# AJUSTES VISUAIS DA SIDEBAR (LARGURA E ELIMINAÇÃO DE ESPAÇO SUPERIOR)
-# -----------------------------------------------------------------------------
-st.markdown(
-    """
-    <style>
-        /* Largura da Sidebar (-20%) */
-        [data-testid="stSidebar"] {
-            width: 270px !important;
-        }
-        
-        /* Remove o topo/padding excessivo reservado pelo Streamlit */
-        [data-testid="stSidebarHeader"] {
-            padding-top: 0rem !important;
-            padding-bottom: 0rem !important;
-            height: 0px !important;
-        }
-        
-        [data-testid="stSidebarUserContent"] {
-            padding-top: 0.5rem !important;
-        }
-
-        /* Compacta o espaçamento vertical geral dos elementos da sidebar */
-        [data-testid="stSidebar"] .element-container {
-            margin-bottom: 0.2rem !important;
-        }
-
-        /* Reduz o espaçamento das linhas divisórias (hr) */
-        [data-testid="stSidebar"] hr {
-            margin-top: 0.4rem !important;
-            margin-bottom: 0.4rem !important;
-        }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
-# -----------------------------------------------------------------------------
-# BASE FIXA DE ASSESSORES E PCPIs
-# -----------------------------------------------------------------------------
-ASSESSORES_PCPI = {
-    "ANDRE LUIS GOULART": [
-        "AIDINA MOTA DE SOUZA",
-        "CAROLINE LOPEZ DE BOM LESCANO",
-        "DEIVID JOSÉ DA SILVA BRASIL",
-        "ERASMO AJALA SABALE",
-        "FILIPE FERNANDES DA SILVA CUNHA",
-        "JOAO BATISTA SOARES GALVAO",
-        "MARCELA REGIANE DA SILVA MESSA",
-        "TATYANE LEITE GALVAO",
-    ],
-    "CAROLINE SILVERIO MOSSI": [
-        "ANA PAULA DE BRITO BATISTA",
-        "CLEIDE MARCELINO DE OLIVEIRA",
-        "FABIANA APARECIDA AGUILAR DA SILVA SANTOS",
-        "LARISSA ARRUDA SALVA",
-        "LENNON DE SOUZA MALTA",
-        "MIRIAM BUZZOLO TEIXEIRA",
-        "NATALYA DUTRA ANTUNES BATISTOTE",
-    ],
-    "CINTIA DE ASSIS FURTADO": [
-        "EVERTON SOUZA DE QUEIROZ",
-        "GISLAINE PINHEIRO PONTES",
-        "LEILA PEREIRA DE ARAUJO",
-        "LUCAS HENRIQUE GONCALVES DA SILVA",
-        "PAULA BONFIM GOMES FELIX",
-        "RENATA DE FARIA PEREIRA",
-        "VINICIUS CONSTANTINO BARBOSA",
-    ],
-    "DIOGO DJALMA DO NASCIMENTO": [
-        "ANILTON CHIMENES NOGUEIRA",
-        "ELIANE BARROS",
-        "ELIENE DA SILVA GARCETE PEREIRA DE ABREU",
-        "JEAN CARLOS AZEVEDO PENASSO",
-        "MIRIAM BUZZOLO TEIXEIRA",
-        "PEDRO HENRIQUE SIMAS",
-        "SANDRA MARIANO NOGUEIRA",
-        "SUELI DA SILVA",
-        "VARNUZ COSTA JUNIOR",
-    ],
-    "GIOVANE IOP REBOUCAS": [
-        "ANDRE LUIS SOUZA STELLA",
-        "CELIA CENTURION CORDEIRO",
-        "GRAZIELA MARIA DE CARVALHO",
-        "JOAO MATHEUS ALBERTONI MACEDO",
-        "LARISSA MENDES DA ROSA",
-        "SIDRONIO APARECIDO DIAS BARBOSA",
-        "THAYNARA DAVALO CENTURIAO",
-    ],
-    "KARLA KAROLINE SERVION MARTINS FERREIRA": [
-        "CARLOS ALEXANDRE SANTOS DA SILVA",
-        "FERNANDA ISABELA PONTES SILVA ROSA",
-        "JOSE APARECIDO VITORINO",
-        "MARCIELY GONCALVES DA SILVA",
-        "MARIANA THAIS OLIVEIRA BARBOSA",
-        "NUBIA SOARES LOPES",
-        "STEPHANIE DE OLIVEIRA PEREIRA",
-    ],
-    "LEIDE LAURA CENTURION SARAIVA": [
-        "ANDERSON GARCIA",
-        "ANI KAROLINI DOS SANTOS DUTRA",
-        "ANTONIA IZABEL DOS SANTOS VILHALVA",
-        "CLEYTON GARCIA DA SILVA",
-        "ELAINE CRISTINA MACIEL MIRANDA",
-        "FELIPE ARRUDA CURCI",
-        "PERSON GOUVEIA DOS SANTOS MOREIRA",
-    ],
-    "LIDIANE OTTONI DA SILVA PETINI": [
-        "DIEGO DA SILVA SOUZA",
-        "DIEGO LOPES TAVARES",
-        "ERIKI MILLERLIMA LUIZ PAIVA",
-        "JOHNNY ALVES MATTOS",
-        "MARCIA ANDREA DE JESUS PEREIRA TEODORETO",
-        "PATRICIA CONCEICAO VASQUES YAMASHIRO",
-    ],
-    "MELISSA ALVES FERREIRA": [
-        "CAIO AUGUSTO BORGES GARCIA",
-        "DERICK TRINDADE BEZERRA",
-        "JORGE ANTONIO DIAS",
-        "JOSE RENE MIRANDA DE SOUSA",
-        "ROBERTO CESAR DE FREITAS",
-        "SERGIO ALESANDRO DE MOURA",
-    ],
-    "VIDAL AUDALA RODRIGUES": [
-        "ALFA ALMERINDA MOURA DE CAMPOS",
-        "GISLAINE LURDES DOS SANTOS",
-        "JANAINA FELIX DA SILVA",
-        "JOSE AUGUSTO FERREIRA DE OLIVEIRA",
-        "MARCOS RIOS NEVES",
-        "VANESCA FERREIRA LIMA MARTINS",
-        "VINICIUS TEIXEIRA DA SILVA",
-    ],
-    "YARA KAROLINA SANTANA DE MATTOS MESSIAS": [
-        "KAIO CASSIO DELMONDES DIAS",
-        "LUANA LALINE RODRIGUES DELFINO",
-        "MARCELO GOMES DE SOUZA",
-        "RITA DE CASSIA LANZA",
-        "SABRINA RODRIGUES MARQUES",
-        "THIAGO VAREIRO VALERIO",
-        "WELLINGTON SANDIM GLAGAU VIEIRA",
-    ],
-}
-
-# Inicialização de estados na sessão
-if "logado_sgde" not in st.session_state:
-    st.session_state.logado_sgde = False
-if "assessor_nome" not in st.session_state:
-    st.session_state.assessor_nome = None
-if "pcpi_selecionado" not in st.session_state:
-    st.session_state.pcpi_selecionado = None
-
-# Recuperação da Chave API Groq dos Secrets
-groq_api_key = st.secrets.get("GROQ_API_KEY", "")
-
-# -----------------------------------------------------------------------------
-# SIDEBAR - PAINEL DE CONTROLE E NAVEGAÇÃO
+# BARRA LATERAL COMPACTA
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.subheader("⚙️ Configurações")
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {
+                width: 16.8rem !important;
+                padding-top: 0rem !important;
+            }
+            [data-testid="stSidebar"] > div:first-child {
+                width: 16.8rem !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+                gap: 0.35rem !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
+    st.subheader("⚙️ Configurações")
+    
     # Validação do status da API Groq
     if groq_api_key and groq_api_key.startswith("gsk_"):
         st.caption("✅ **IA (Groq):** Chave Conectada")
@@ -230,167 +91,35 @@ with st.sidebar:
     else:
         st.caption("❌ **IA (Groq):** Chave Ausente nos Secrets")
 
-    st.markdown("---")
-
-    # 1. Status do Login no SGDE (Topo)
-    if st.session_state.logado_sgde:
-        st.caption("🟢 Login SGDE Conectado | ⏰ 15:00")
+    sessao_valida, cronometro_str = verificar_sessao_ativa()
+    if sessao_valida:
+        st.caption(f"✅ **Login SGDE Ligado** | ⏰ {cronometro_str}")
     else:
-        st.caption("❌ Login SGDE Desligado | ⏰ 00:00")
-
-    # Form de Login
-    with st.expander(
-        "🔑 Acesso ao SGDE", expanded=not st.session_state.logado_sgde
-    ):
-        usuario_sgde = st.text_input("Usuário SGDE:", key="usr_sgde")
-        senha_sgde = st.text_input(
-            "Senha SGDE:", type="password", key="pwd_sgde"
-        )
-        if st.button("Conectar ao SGDE", use_container_width=True):
-            if usuario_sgde and senha_sgde:
-                st.session_state.logado_sgde = True
-                st.success("Conectado com sucesso!")
-                st.rerun()
-            else:
-                st.error("Informe usuário e senha.")
+        st.caption("❌ **Login SGDE Desligado** | ⏰ 00:00")
 
     st.markdown("---")
 
-    # 2. Seleção do Assessor
-    lista_assessores = ["Selecione um Assessor..."] + sorted(
-        list(ASSESSORES_PCPI.keys())
-    )
-    assessor_escolhido = st.selectbox(
-        "👤 Selecione o Assessor:",
-        options=lista_assessores,
-        disabled=not st.session_state.logado_sgde,
-        key="sb_assessor",
-    )
+    col_usr, col_pwd = st.columns(2)
+    with col_usr:
+        usuario_sgde = st.text_input("Usuário", value="agoulart")
+    with col_pwd:
+        senha_sgde = st.text_input("Senha", type="password")
 
-    # Sincroniza a variável 'assessor_nome'
-    if assessor_escolhido != "Selecione um Assessor...":
-        st.session_state.assessor_nome = assessor_escolhido
-        assessor_nome = assessor_escolhido
-    else:
-        st.session_state.assessor_nome = None
-        assessor_nome = None
-
-    # 3. Seleção do PCPI
-    tem_assessor = st.session_state.assessor_nome is not None
-
-    if tem_assessor:
-        pcpis_do_assessor = sorted(
-            ASSESSORES_PCPI.get(st.session_state.assessor_nome, [])
-        )
-        opcoes_pcpi = ["Todos"] + pcpis_do_assessor
-    else:
-        opcoes_pcpi = ["Selecione um Assessor primeiro..."]
-
-    pcpi_escolhido = st.selectbox(
-        "💻 Selecione o PCPI / PROGETEC:",
-        options=opcoes_pcpi,
-        disabled=not tem_assessor,
-        key="sb_pcpi",
-    )
-
-    # Atualiza o estado do PCPI
-    if tem_assessor and pcpi_escolhido:
-        st.session_state.pcpi_selecionado = pcpi_escolhido
-    else:
-        st.session_state.pcpi_selecionado = None
-
-    # 4. Seleção de Mês e Ano
-    tem_pcpi = st.session_state.pcpi_selecionado is not None
-
-    col_mes, col_ano = st.columns(2)
-with col_mes:
-    mes_ref = st.selectbox(
-        "📅 Mês:",
-        options=[
-            "Janeiro",
-            "Fevereiro",
-            "Março",
-            "Abril",
-            "Maio",
-            "Junho",
-            "Julho",
-            "Agosto",
-            "Setembro",
-            "Outubro",
-            "Novembro",
-            "Dezembro",
-        ],
-        index=5,  # Junho por padrão
-        disabled=not tem_pcpi,
-        key="sb_mes",
-    )
-with col_ano:
-    ano_ref = st.selectbox(
-        "📆 Ano:", options=[2026, 2025, 2024], disabled=not tem_pcpi, key="sb_ano"
-    )
-
-   # Definição e sincronização global de mes_ref, ano_ref, vigencia_ref e data_ref
-    vigencia_ref = f"{mes_ref}/{ano_ref}"
-    data_ref = f"{mes_ref} de {ano_ref}"
-
-    st.session_state.mes_ref = mes_ref
-    st.session_state.ano_ref = ano_ref
-    st.session_state.vigencia_ref = vigencia_ref
-    st.session_state.data_ref = data_ref
+    assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
+    
+    col_mes, col_ano = st.columns([1.6, 1])
+    with col_mes:
+        meses_opcoes = [
+            "06 - JUNHO", "07 - JULHO", 
+            "08 - AGOSTO", "09 - SETEMBRO"
+        ]
+        vigencia_ref = st.selectbox("Mês", meses_opcoes, index=1)
+    with col_ano:
+        ano_ref = st.selectbox("Ano", ["2026", "2025"])
 
     st.write("")
+    btn_buscar = st.button("🔍 Buscar Rotinas no SGDE", type="primary", use_container_width=True)
 
-    # 5. Botão Buscar Rotina
-    btn_buscar = st.button(
-        "🔍 Buscar Rotina",
-        type="primary",
-        use_container_width=True,
-        disabled=not tem_pcpi,
-    )
-
-    if btn_buscar:
-        st.session_state.executar_busca = True
-
-# -----------------------------------------------------------------------------
-# AJUSTES VISUAIS DE CABEÇALHO E PADDING PRINCIPAL
-# -----------------------------------------------------------------------------
-st.markdown(
-    """
-    <style>
-        /* Reduz a margem superior da área principal da tela */
-        .block-container {
-            padding-top: 1.5rem !important;
-            padding-bottom: 1rem !important;
-        }
-        /* Oculta/compacta o cabeçalho padrao do Streamlit para o conteúdo subir */
-        [data-testid="stHeader"] {
-            height: 0px !important;
-            background: transparent !important;
-        }
-        /* Ajustes da Sidebar (-20% de largura e sem espaço no topo) */
-        [data-testid="stSidebar"] {
-            width: 270px !important;
-        }
-        [data-testid="stSidebarHeader"] {
-            padding-top: 0rem !important;
-            padding-bottom: 0rem !important;
-            height: 0px !important;
-        }
-        [data-testid="stSidebarUserContent"] {
-            padding-top: 0.5rem !important;
-        }
-        [data-testid="stSidebar"] .element-container {
-            margin-bottom: 0.2rem !important;
-        }
-        [data-testid="stSidebar"] hr {
-            margin-top: 0.4rem !important;
-            margin-bottom: 0.4rem !important;
-        }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-        
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
 # -----------------------------------------------------------------------------
@@ -401,55 +130,47 @@ st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique e
 # FUNÇÃO PARA EXTRAIR E FORMATAR O TEXTO BRUTO EM DATAFRAME
 # -----------------------------------------------------------------------------
 def processar_texto_rotina(texto_bruto):
-    padrao = r"(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)"
-
+    padrao = r'(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)'
+    
     inicio = texto_bruto.find("DESCRIÇÃO DA ROTINA")
     fim = texto_bruto.find("Parecer", inicio if inicio != -1 else 0)
-
-    bloco_util = (
-        texto_bruto[inicio:fim]
-        if inicio != -1 and fim != -1
-        else texto_bruto
-    )
-
+    
+    bloco_util = texto_bruto[inicio:fim] if inicio != -1 and fim != -1 else texto_bruto
+    
     registros = []
     matches = re.findall(padrao, bloco_util, re.DOTALL)
-
+    
     for data, turno, descricao in matches:
         desc_limpa = " ".join(descricao.split())
-        registros.append(
-            {"Data": data, "Turno": turno, "Descrição da Rotina": desc_limpa}
-        )
-
+        registros.append({
+            "Data": data,
+            "Turno": turno,
+            "Descrição da Rotina": desc_limpa
+        })
+        
     return pd.DataFrame(registros)
 
 # -----------------------------------------------------------------------------
 # ETAPA 1: APENAS LISTAR AS ROTINAS (CÓDIGO ESTÁVEL)
 # -----------------------------------------------------------------------------
-async def buscar_lista_rotinas(
-    usuario, senha, empresa, assessor, ano, vigencia, log_container
-):
+async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia, log_container):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
         sessao_valida, _ = verificar_sessao_ativa()
-
+        
         if sessao_valida and st.session_state.sgde_cookies:
             log_container.write("⚡ Usando sessão ativa do SGDE...")
             await context.add_cookies(st.session_state.sgde_cookies)
         else:
             if not senha:
                 await browser.close()
-                raise Exception(
-                    "Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login."
-                )
-
+                raise Exception("Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login.")
+            
             log_container.write("🔑 Efetuando login no SGDE...")
             page = await context.new_page()
-            await page.goto(
-                "https://www.sgde.ms.gov.br/", wait_until="networkidle"
-            )
+            await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
@@ -463,10 +184,7 @@ async def buscar_lista_rotinas(
 
         try:
             log_container.write("📍 Acessando tela de Análise de Rotina...")
-            await page.goto(
-                "https://www.sgde.ms.gov.br/progetec/rotinaAnalise",
-                wait_until="domcontentloaded",
-            )
+            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
 
             target_frame = page
@@ -477,87 +195,26 @@ async def buscar_lista_rotinas(
                         break
 
             log_container.write("🔍 Aplicando filtros de busca...")
-
-            # -----------------------------------------------------------------
-            # 1. SELEÇÃO DO ASSESSOR
-            # -----------------------------------------------------------------
-            simular_box = await target_frame.wait_for_selector(
-                "div[name='multiplicadorNte']", timeout=20000
-            )
+            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
             await simular_box.click()
+            await target_frame.fill(".select2-search input.select2-input:visible", assessor)
+            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
 
-            input_assessor = await target_frame.wait_for_selector(
-                ".select2-search input.select2-input:visible", timeout=5000
-            )
-            await input_assessor.fill(assessor)
-            await page.wait_for_timeout(500)
-            await input_assessor.press("Enter")
-
-            # -----------------------------------------------------------------
-            # DROPDOWNS SECUNDÁRIOS (ANO E MES/VIGÊNCIA)
-            # -----------------------------------------------------------------
-            dropdowns = await target_frame.query_selector_all(
-                "a.select2-choice"
-            )
-
-            # -----------------------------------------------------------------
-            # 2. SELEÇÃO DO ANO (Dropdown index 3)
-            # -----------------------------------------------------------------
+            dropdowns = await target_frame.query_selector_all("a.select2-choice")
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
-                await page.wait_for_timeout(300)
+                await target_frame.click(f".select2-result-label:has-text('{ano}')")
 
-                input_ano = await target_frame.wait_for_selector(
-                    ".select2-search input.select2-input:visible", timeout=5000
-                )
-                await input_ano.fill(str(ano))
-                await page.wait_for_timeout(500)
-                await input_ano.press("Enter")
-
-            # -----------------------------------------------------------------
-            # 3. SELEÇÃO DA VIGÊNCIA / MÊS (Dropdown index 4)
-            # -----------------------------------------------------------------
             if len(dropdowns) >= 5:
-                # Trata a vigência para enviar tanto 'Julho' quanto 'Julho/2026' se necessário
-                mes_puro = (
-                    str(vigencia).split("/")[0].strip()
-                    if "/" in str(vigencia)
-                    else str(vigencia).strip()
-                )
-
                 await dropdowns[4].click()
-                await page.wait_for_timeout(300)
+                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
 
-                input_mes = await target_frame.wait_for_selector(
-                    ".select2-search input.select2-input:visible", timeout=5000
-                )
-
-                # Tenta primeiro filtrar digitando apenas o Mês
-                await input_mes.fill(mes_puro)
-                await page.wait_for_timeout(600)
-
-                # Pressiona Enter para confirmar a opção filtrada no Select2
-                await input_mes.press("Enter")
-
-            # -----------------------------------------------------------------
-            # 4. PESQUISA E CARREGAMENTO
-            # -----------------------------------------------------------------
             log_container.write("🚀 Pesquisando rotinas...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
             await page.wait_for_timeout(2000)
-
-            # Aguarda a camada de carregamento do Angular sumir
-            try:
-                await target_frame.wait_for_selector(
-                    ".cg-busy-backdrop", state="hidden", timeout=15000
-                )
-            except Exception:
-                pass
-
-            await target_frame.wait_for_selector(
-                ".ui-grid-row", timeout=20000
-            )
+            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
+            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             log_container.write(f"📋 Mapeando {len(linhas)} rotina(s)...")
@@ -565,28 +222,18 @@ async def buscar_lista_rotinas(
             lista_rotinas = []
             for index, linha in enumerate(linhas):
                 texto_linha = await linha.inner_text()
-                colunas = [
-                    col.strip()
-                    for col in texto_linha.split("\n")
-                    if col.strip()
-                ]
-
+                colunas = [col.strip() for col in texto_linha.split('\n') if col.strip()]
+                
                 escola = colunas[1] if len(colunas) > 1 else "Escola N/I"
-                servidor = (
-                    colunas[2]
-                    if len(colunas) > 2
-                    else f"Servidor #{index+1}"
-                )
+                servidor = colunas[2] if len(colunas) > 2 else f"Servidor #{index+1}"
                 situacao = colunas[5] if len(colunas) > 5 else "N/I"
 
-                lista_rotinas.append(
-                    {
-                        "Index": index,
-                        "Unidade Escolar": escola,
-                        "Servidor": servidor,
-                        "Situação": situacao,
-                    }
-                )
+                lista_rotinas.append({
+                    "Index": index,
+                    "Unidade Escolar": escola,
+                    "Servidor": servidor,
+                    "Situação": situacao
+                })
 
             await browser.close()
             return lista_rotinas
@@ -628,10 +275,7 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         page = await context.new_page()
 
         try:
-            await page.goto(
-                "https://www.sgde.ms.gov.br/progetec/rotinaAnalise",
-                wait_until="domcontentloaded",
-            )
+            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
 
             target_frame = page
@@ -641,94 +285,24 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                         target_frame = frame
                         break
 
-            # 1. Seleciona o Assessor / Multiplicador
-            simular_box = await target_frame.wait_for_selector(
-                "div[name='multiplicadorNte']", timeout=20000
-            )
+            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
             await simular_box.click()
-            await target_frame.fill(
-                ".select2-search input.select2-input:visible", assessor
-            )
-            await target_frame.wait_for_selector(
-                ".select2-highlighted, .select2-result-label", timeout=5000
-            )
-            await target_frame.click(
-                f".select2-result-label:has-text('{assessor}')"
-            )
+            await target_frame.fill(".select2-search input.select2-input:visible", assessor)
+            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
 
-            # Mapeia os dropdowns Select2 na tela
-            dropdowns = await target_frame.query_selector_all(
-                "a.select2-choice"
-            )
-
-            # 2. Seleciona o Ano (ex: "2026")
+            dropdowns = await target_frame.query_selector_all("a.select2-choice")
             if len(dropdowns) >= 4:
-                try:
-                    await dropdowns[3].click()
-                    await target_frame.wait_for_selector(
-                        ".select2-search input.select2-input:visible",
-                        timeout=3000,
-                    )
-                    await target_frame.fill(
-                        ".select2-search input.select2-input:visible", str(ano)
-                    )
-                    await target_frame.click(
-                        f".select2-result-label:has-text('{ano}')", timeout=3000
-                    )
-                except Exception:
-                    pass
+                await dropdowns[3].click()
+                await target_frame.click(f".select2-result-label:has-text('{ano}')")
 
-            # 3. Seleciona a Vigência / Mês com Tratamento Múltiplo (Evita Timeout de 30s)
             if len(dropdowns) >= 5:
                 await dropdowns[4].click()
-                await target_frame.wait_for_selector(
-                    ".select2-search input.select2-input:visible", timeout=3000
-                )
+                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
 
-                # Extrai as variações possíveis da string (Ex: "Julho", "JULHO", "Julho/2026")
-                str_vigencia = str(vigencia).strip()
-                mes_extenso = (
-                    str_vigencia.split("/")[0].strip()
-                    if "/" in str_vigencia
-                    else str_vigencia
-                )
-
-                # Tenta 1: Digita na busca do Select2 e seleciona o item destacado
-                try:
-                    await target_frame.fill(
-                        ".select2-search input.select2-input:visible",
-                        mes_extenso,
-                    )
-                    await page.wait_for_timeout(500)
-                    # Clica na opção destacada pelo autocompletar do Select2
-                    await target_frame.click(
-                        ".select2-highlighted", timeout=3000
-                    )
-                except Exception:
-                    # Tenta 2: Se falhar a digitada, força a busca por Regex Case-Insensitive no DOM
-                    try:
-                        await target_frame.click(
-                            f"xpath=//div[contains(@class, 'select2-result-label') and translate(text(), 'abcdefghijklmnopqrstuvwxyzàáâãéêíóôõúç', 'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÉÊÍÓÔÕÚÇ') = '{mes_extenso.upper()}']",
-                            timeout=3000,
-                        )
-                    except Exception:
-                        # Tenta 3: Fallback usando a string original enviada (ex: "Julho/2026")
-                        await target_frame.click(
-                            f"xpath=//div[contains(@class, 'select2-result-label') and contains(text(), '{mes_extenso}')]",
-                            timeout=3000,
-                        )
-
-            # 4. Clica no Botão Pesquisar
             await target_frame.click("input[ng-click='pesquisar()']")
             await page.wait_for_timeout(2000)
-
-            # Aguarda a tabela recarregar
-            await target_frame.wait_for_selector(
-                ".cg-busy-backdrop", state="hidden", timeout=20000
-            )
-            await target_frame.wait_for_selector(
-                ".ui-grid-row", timeout=20000
-            )
+            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
+            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             
