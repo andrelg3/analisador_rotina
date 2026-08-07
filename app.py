@@ -581,40 +581,60 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
 
             # 2. Seleciona o Ano (ex: "2026")
             if len(dropdowns) >= 4:
-                await dropdowns[3].click()
-                await target_frame.wait_for_selector(
-                    ".select2-search input.select2-input:visible", timeout=3000
-                )
-                await target_frame.fill(
-                    ".select2-search input.select2-input:visible", str(ano)
-                )
-                await target_frame.click(
-                    f".select2-result-label:has-text('{ano}')"
-                )
+                try:
+                    await dropdowns[3].click()
+                    await target_frame.wait_for_selector(
+                        ".select2-search input.select2-input:visible",
+                        timeout=3000,
+                    )
+                    await target_frame.fill(
+                        ".select2-search input.select2-input:visible", str(ano)
+                    )
+                    await target_frame.click(
+                        f".select2-result-label:has-text('{ano}')", timeout=3000
+                    )
+                except Exception:
+                    pass
 
-            # 3. Seleciona a Vigência / Mês (Garante que passe apenas o MÊS, ex: "Julho")
+            # 3. Seleciona a Vigência / Mês com Tratamento Múltiplo (Evita Timeout de 30s)
             if len(dropdowns) >= 5:
-                # Trata a variável para extrair apenas o mês caso venha no formato "Julho/2026"
-                mes_puro = (
-                    vigencia.split("/")[0].strip()
-                    if "/" in str(vigencia)
-                    else str(vigencia).strip()
-                )
-
                 await dropdowns[4].click()
                 await target_frame.wait_for_selector(
                     ".select2-search input.select2-input:visible", timeout=3000
                 )
-                # Digita o mês na caixa de busca do Select2 para garantir a correspondência
-                await target_frame.fill(
-                    ".select2-search input.select2-input:visible", mes_puro
+
+                # Extrai as variações possíveis da string (Ex: "Julho", "JULHO", "Julho/2026")
+                str_vigencia = str(vigencia).strip()
+                mes_extenso = (
+                    str_vigencia.split("/")[0].strip()
+                    if "/" in str_vigencia
+                    else str_vigencia
                 )
-                await target_frame.wait_for_selector(
-                    ".select2-highlighted, .select2-result-label", timeout=5000
-                )
-                await target_frame.click(
-                    f".select2-result-label:has-text('{mes_puro}')"
-                )
+
+                # Tenta 1: Digita na busca do Select2 e seleciona o item destacado
+                try:
+                    await target_frame.fill(
+                        ".select2-search input.select2-input:visible",
+                        mes_extenso,
+                    )
+                    await page.wait_for_timeout(500)
+                    # Clica na opção destacada pelo autocompletar do Select2
+                    await target_frame.click(
+                        ".select2-highlighted", timeout=3000
+                    )
+                except Exception:
+                    # Tenta 2: Se falhar a digitada, força a busca por Regex Case-Insensitive no DOM
+                    try:
+                        await target_frame.click(
+                            f"xpath=//div[contains(@class, 'select2-result-label') and translate(text(), 'abcdefghijklmnopqrstuvwxyzàáâãéêíóôõúç', 'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÉÊÍÓÔÕÚÇ') = '{mes_extenso.upper()}']",
+                            timeout=3000,
+                        )
+                    except Exception:
+                        # Tenta 3: Fallback usando a string original enviada (ex: "Julho/2026")
+                        await target_frame.click(
+                            f"xpath=//div[contains(@class, 'select2-result-label') and contains(text(), '{mes_extenso}')]",
+                            timeout=3000,
+                        )
 
             # 4. Clica no Botão Pesquisar
             await target_frame.click("input[ng-click='pesquisar()']")
