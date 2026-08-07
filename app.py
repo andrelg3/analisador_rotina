@@ -30,6 +30,28 @@ groq_api_key = (
 )
 
 # -----------------------------------------------------------------------------
+# MAPEAMENTO DE ASSESSORES E SEUS RESPECTIVOS PCPIS
+# -----------------------------------------------------------------------------
+ASSESSORES_PCPIS = {
+    "ANDRE LUIS GOULART": [
+        "Todos",
+        "PROFESSOR 1 - ESCOLA A",
+        "PROFESSOR 2 - ESCOLA B",
+        "PROFESSOR 3 - ESCOLA C",
+    ],
+    "CARLOS EDUARDO SILVA": [
+        "Todos",
+        "PROFESSOR 4 - ESCOLA D",
+        "PROFESSOR 5 - ESCOLA E",
+    ],
+    "MARIA FERNANDA SOUZA": [
+        "Todos",
+        "PROFESSOR 6 - ESCOLA F",
+        "PROFESSOR 7 - ESCOLA G",
+    ],
+}
+
+# -----------------------------------------------------------------------------
 # ESTADOS DA SESSÃO E CRONÔMETRO
 # -----------------------------------------------------------------------------
 if "rotinas_carregadas" not in st.session_state:
@@ -102,12 +124,12 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# BARRA LATERAL COMPACTA
+# BARRA LATERAL COMPACTA E REORGANIZADA
 # -----------------------------------------------------------------------------
 with st.sidebar:
     st.subheader("⚙️ Configurações")
 
-    # Validação do status da API Groq
+    # 1. Status da API Groq
     if groq_api_key and groq_api_key.startswith("gsk_"):
         st.caption("✅ **IA (Groq):** Chave Conectada")
     elif groq_api_key:
@@ -115,22 +137,31 @@ with st.sidebar:
     else:
         st.caption("❌ **IA (Groq):** Chave Ausente nos Secrets")
 
+    # 2. Status e Cronômetro do Login SGDE
     sessao_valida, cronometro_str = verificar_sessao_ativa()
     if sessao_valida:
         st.caption(f"🟢 **Login SGDE Ligado** | ⏰ {cronometro_str}")
     else:
         st.caption("❌ **Login SGDE Desligado** | ⏰ 00:00")
 
-    st.markdown("---")
-
+    # 3. Campos de Login SGDE (Posicionados diretamente abaixo do status)
     col_usr, col_pwd = st.columns(2)
     with col_usr:
         usuario_sgde = st.text_input("Usuário", value="agoulart")
     with col_pwd:
         senha_sgde = st.text_input("Senha", type="password")
 
-    assessor_nome = st.text_input("Assessor", value="ANDRE LUIS GOULART")
+    st.markdown("---")
 
+    # 4. Seleção de Assessor e PCPI Vinculado
+    assessor_nome = st.selectbox(
+        "Assessor", options=list(ASSESSORES_PCPIS.keys()), index=0
+    )
+
+    pcpis_disponiveis = ASSESSORES_PCPIS.get(assessor_nome, ["Todos"])
+    pcpi_selecionado = st.selectbox("PCPI / Servidor", options=pcpis_disponiveis)
+
+    # 5. Seleção de Mês e Ano
     col_mes, col_ano = st.columns([1.6, 1])
     with col_mes:
         meses_opcoes = [
@@ -274,7 +305,7 @@ async def buscar_lista_rotinas(
             await page.wait_for_timeout(400)
             await input_assessor.press("Enter")
 
-            # Tratamento da vigência: Extrai apenas o nome do mês (ex: "JULHO" de "07 - JULHO")
+            # Mês puro
             mes_limpo = (
                 vigencia.split("-")[-1].strip()
                 if "-" in vigencia
@@ -614,57 +645,69 @@ if btn_buscar:
         st.error(f"Erro: {str(e)}")
 
 # -----------------------------------------------------------------------------
-# EXIBIÇÃO DA LISTA DE ROTINAS
+# EXIBIÇÃO DA LISTA DE ROTINAS (FILTRADA POR PCPI SE SELECIONADO)
 # -----------------------------------------------------------------------------
 if st.session_state.rotinas_carregadas is not None:
-    qtd_rotinas = len(st.session_state.rotinas_carregadas)
+    rotinas_filtradas = st.session_state.rotinas_carregadas
+
+    if pcpi_selecionado != "Todos":
+        rotinas_filtradas = [
+            r
+            for r in rotinas_filtradas
+            if pcpi_selecionado.lower() in r["Servidor"].lower()
+        ]
+
+    qtd_rotinas = len(rotinas_filtradas)
     st.subheader(f"📋 Rotinas Encontradas ({qtd_rotinas})")
 
-    df_lista = pd.DataFrame(st.session_state.rotinas_carregadas)
+    df_lista = pd.DataFrame(rotinas_filtradas)
 
-    for idx, row in df_lista.iterrows():
-        col_esc, col_serv, col_sit, col_btn = st.columns([3, 3, 2, 2])
-        col_esc.write(f"**{row['Unidade Escolar']}**")
-        col_serv.write(row["Servidor"])
-        col_sit.write(row["Situação"])
+    if not df_lista.empty:
+        for idx, row in df_lista.iterrows():
+            col_esc, col_serv, col_sit, col_btn = st.columns([3, 3, 2, 2])
+            col_esc.write(f"**{row['Unidade Escolar']}**")
+            col_serv.write(row["Servidor"])
+            col_sit.write(row["Situação"])
 
-        if col_btn.button("Ver Rotina", key=f"btn_rotina_{row['Index']}"):
-            log_ext = st.status(
-                f"Buscando detalhes da rotina de {row['Servidor']}...",
-                expanded=True,
-            )
-            try:
-                texto_bruto = asyncio.run(
-                    extrair_rotina_especifica(
-                        usuario_sgde,
-                        senha_sgde,
-                        empresa_sgde,
-                        assessor_nome,
-                        ano_ref,
-                        vigencia_ref,
-                        row["Index"],
-                        log_ext,
-                    )
-                )
-
-                df_detalhado = processar_texto_rotina(texto_bruto)
-                st.session_state.df_rotina_detalhada = df_detalhado
-                st.session_state.rotina_selecionada_info = row.to_dict()
-                st.session_state.resultado_ia = None
-
-                log_ext.update(
-                    label="Rotina extraída com sucesso!",
-                    state="complete",
-                    expanded=False,
-                )
-                st.rerun()
-            except Exception as e:
-                log_ext.update(
-                    label="Erro ao extrair rotina.",
-                    state="error",
+            if col_btn.button("Ver Rotina", key=f"btn_rotina_{row['Index']}"):
+                log_ext = st.status(
+                    f"Buscando detalhes da rotina de {row['Servidor']}...",
                     expanded=True,
                 )
-                st.error(f"Erro: {str(e)}")
+                try:
+                    texto_bruto = asyncio.run(
+                        extrair_rotina_especifica(
+                            usuario_sgde,
+                            senha_sgde,
+                            empresa_sgde,
+                            assessor_nome,
+                            ano_ref,
+                            vigencia_ref,
+                            row["Index"],
+                            log_ext,
+                        )
+                    )
+
+                    df_detalhado = processar_texto_rotina(texto_bruto)
+                    st.session_state.df_rotina_detalhada = df_detalhado
+                    st.session_state.rotina_selecionada_info = row.to_dict()
+                    st.session_state.resultado_ia = None
+
+                    log_ext.update(
+                        label="Rotina extraída com sucesso!",
+                        state="complete",
+                        expanded=False,
+                    )
+                    st.rerun()
+                except Exception as e:
+                    log_ext.update(
+                        label="Erro ao extrair rotina.",
+                        state="error",
+                        expanded=True,
+                    )
+                    st.error(f"Erro: {str(e)}")
+    else:
+        st.info("Nenhuma rotina encontrada para o filtro de PCPI selecionado.")
 
 # -----------------------------------------------------------------------------
 # EXIBIÇÃO DA ROTINA DETALHADA E SESSÃO DE ANÁLISE COM IA
