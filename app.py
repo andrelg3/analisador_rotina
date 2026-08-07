@@ -350,6 +350,46 @@ with st.sidebar:
 
     if btn_buscar:
         st.session_state.executar_busca = True
+
+# -----------------------------------------------------------------------------
+# AJUSTES VISUAIS DE CABEÇALHO E PADDING PRINCIPAL
+# -----------------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+        /* Reduz a margem superior da área principal da tela */
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 1rem !important;
+        }
+        /* Oculta/compacta o cabeçalho padrao do Streamlit para o conteúdo subir */
+        [data-testid="stHeader"] {
+            height: 0px !important;
+            background: transparent !important;
+        }
+        /* Ajustes da Sidebar (-20% de largura e sem espaço no topo) */
+        [data-testid="stSidebar"] {
+            width: 270px !important;
+        }
+        [data-testid="stSidebarHeader"] {
+            padding-top: 0rem !important;
+            padding-bottom: 0rem !important;
+            height: 0px !important;
+        }
+        [data-testid="stSidebarUserContent"] {
+            padding-top: 0.5rem !important;
+        }
+        [data-testid="stSidebar"] .element-container {
+            margin-bottom: 0.2rem !important;
+        }
+        [data-testid="stSidebar"] hr {
+            margin-top: 0.4rem !important;
+            margin-bottom: 0.4rem !important;
+        }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
         
 # -----------------------------------------------------------------------------
 # CABEÇALHO PRINCIPAL
