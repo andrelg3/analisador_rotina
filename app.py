@@ -303,33 +303,33 @@ with st.sidebar:
     tem_pcpi = st.session_state.pcpi_selecionado is not None
 
     col_mes, col_ano = st.columns(2)
-    with col_mes:
-        mes_ref = st.selectbox(
-            "📅 Mês:",
-            options=[
-                "Janeiro",
-                "Fevereiro",
-                "Março",
-                "Abril",
-                "Maio",
-                "Junho",
-                "Julho",
-                "Agosto",
-                "Setembro",
-                "Outubro",
-                "Novembro",
-                "Dezembro",
-            ],
-            index=5,  # Junho por padrão
-            disabled=not tem_pcpi,
-            key="sb_mes",
-        )
-    with col_ano:
-        ano_ref = st.selectbox(
-            "📆 Ano:", options=[2026, 2025, 2024], disabled=not tem_pcpi, key="sb_ano"
-        )
+with col_mes:
+    mes_ref = st.selectbox(
+        "📅 Mês:",
+        options=[
+            "Janeiro",
+            "Fevereiro",
+            "Março",
+            "Abril",
+            "Maio",
+            "Junho",
+            "Julho",
+            "Agosto",
+            "Setembro",
+            "Outubro",
+            "Novembro",
+            "Dezembro",
+        ],
+        index=5,  # Junho por padrão
+        disabled=not tem_pcpi,
+        key="sb_mes",
+    )
+with col_ano:
+    ano_ref = st.selectbox(
+        "📆 Ano:", options=[2026, 2025, 2024], disabled=not tem_pcpi, key="sb_ano"
+    )
 
-    # Definição e sincronização global de mes_ref, ano_ref, vigencia_ref e data_ref
+   # Definição e sincronização global de mes_ref, ano_ref, vigencia_ref e data_ref
     vigencia_ref = f"{mes_ref}/{ano_ref}"
     data_ref = f"{mes_ref} de {ano_ref}"
 
@@ -401,47 +401,55 @@ st.write("Selecione os filtros no menu lateral para buscar as rotinas e clique e
 # FUNÇÃO PARA EXTRAIR E FORMATAR O TEXTO BRUTO EM DATAFRAME
 # -----------------------------------------------------------------------------
 def processar_texto_rotina(texto_bruto):
-    padrao = r'(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)'
-    
+    padrao = r"(\d{2}/\d{2}/\d{4})\s+(Matutino|Vespertino|Noturno)\s+(.*?)(?=\d{2}/\d{2}/\d{4}\s+|\bParecer\b|$)"
+
     inicio = texto_bruto.find("DESCRIÇÃO DA ROTINA")
     fim = texto_bruto.find("Parecer", inicio if inicio != -1 else 0)
-    
-    bloco_util = texto_bruto[inicio:fim] if inicio != -1 and fim != -1 else texto_bruto
-    
+
+    bloco_util = (
+        texto_bruto[inicio:fim]
+        if inicio != -1 and fim != -1
+        else texto_bruto
+    )
+
     registros = []
     matches = re.findall(padrao, bloco_util, re.DOTALL)
-    
+
     for data, turno, descricao in matches:
         desc_limpa = " ".join(descricao.split())
-        registros.append({
-            "Data": data,
-            "Turno": turno,
-            "Descrição da Rotina": desc_limpa
-        })
-        
+        registros.append(
+            {"Data": data, "Turno": turno, "Descrição da Rotina": desc_limpa}
+        )
+
     return pd.DataFrame(registros)
 
 # -----------------------------------------------------------------------------
 # ETAPA 1: APENAS LISTAR AS ROTINAS (CÓDIGO ESTÁVEL)
 # -----------------------------------------------------------------------------
-async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia, log_container):
+async def buscar_lista_rotinas(
+    usuario, senha, empresa, assessor, ano, vigencia, log_container
+):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
         sessao_valida, _ = verificar_sessao_ativa()
-        
+
         if sessao_valida and st.session_state.sgde_cookies:
             log_container.write("⚡ Usando sessão ativa do SGDE...")
             await context.add_cookies(st.session_state.sgde_cookies)
         else:
             if not senha:
                 await browser.close()
-                raise Exception("Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login.")
-            
+                raise Exception(
+                    "Sessão expirada ou inexistente. Por favor, digite a senha para efetuar um novo login."
+                )
+
             log_container.write("🔑 Efetuando login no SGDE...")
             page = await context.new_page()
-            await page.goto("https://www.sgde.ms.gov.br/", wait_until="networkidle")
+            await page.goto(
+                "https://www.sgde.ms.gov.br/", wait_until="networkidle"
+            )
             await page.fill("#txtUsuario", usuario)
             await page.fill("#txtSenha", senha)
             await page.select_option("#ddlDominios", value=empresa)
@@ -455,7 +463,10 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
 
         try:
             log_container.write("📍 Acessando tela de Análise de Rotina...")
-            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
+            await page.goto(
+                "https://www.sgde.ms.gov.br/progetec/rotinaAnalise",
+                wait_until="domcontentloaded",
+            )
             await page.wait_for_timeout(3000)
 
             target_frame = page
@@ -466,26 +477,80 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
                         break
 
             log_container.write("🔍 Aplicando filtros de busca...")
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
-            await simular_box.click()
-            await target_frame.fill(".select2-search input.select2-input:visible", assessor)
-            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
 
-            dropdowns = await target_frame.query_selector_all("a.select2-choice")
+            # 1. Assessor / Multiplicador
+            simular_box = await target_frame.wait_for_selector(
+                "div[name='multiplicadorNte']", timeout=20000
+            )
+            await simular_box.click()
+            await target_frame.fill(
+                ".select2-search input.select2-input:visible", assessor
+            )
+            await target_frame.wait_for_selector(
+                ".select2-highlighted, .select2-result-label", timeout=5000
+            )
+            await target_frame.click(
+                f".select2-result-label:has-text('{assessor}')"
+            )
+
+            dropdowns = await target_frame.query_selector_all(
+                "a.select2-choice"
+            )
+
+            # 2. Seleção do Ano
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
-                await target_frame.click(f".select2-result-label:has-text('{ano}')")
+                await target_frame.wait_for_selector(
+                    ".select2-search input.select2-input:visible", timeout=3000
+                )
+                await target_frame.fill(
+                    ".select2-search input.select2-input:visible", str(ano)
+                )
+                await target_frame.click(
+                    f".select2-result-label:has-text('{ano}')", timeout=5000
+                )
 
+            # 3. Seleção do Mês (Trata a variável vigencia para usar SOMENTE o nome do Mês)
             if len(dropdowns) >= 5:
+                # Se vigencia for "Julho/2026", pega apenas "Julho"
+                mes_limpo = (
+                    str(vigencia).split("/")[0].strip()
+                    if "/" in str(vigencia)
+                    else str(vigencia).strip()
+                )
+
                 await dropdowns[4].click()
-                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
+                await target_frame.wait_for_selector(
+                    ".select2-search input.select2-input:visible", timeout=3000
+                )
+
+                # Digita na caixa de busca do Select2 e aguarda o item
+                await target_frame.fill(
+                    ".select2-search input.select2-input:visible", mes_limpo
+                )
+                await page.wait_for_timeout(500)
+
+                # Clica diretamente no item pesquisado/destacado para evitar erro de string exata
+                try:
+                    await target_frame.click(
+                        ".select2-highlighted", timeout=3000
+                    )
+                except Exception:
+                    await target_frame.click(
+                        f".select2-result-label:has-text('{mes_limpo}')",
+                        timeout=5000,
+                    )
 
             log_container.write("🚀 Pesquisando rotinas...")
             await target_frame.click("input[ng-click='pesquisar()']")
 
             await page.wait_for_timeout(2000)
-            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
-            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
+            await target_frame.wait_for_selector(
+                ".cg-busy-backdrop", state="hidden", timeout=20000
+            )
+            await target_frame.wait_for_selector(
+                ".ui-grid-row", timeout=20000
+            )
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             log_container.write(f"📋 Mapeando {len(linhas)} rotina(s)...")
@@ -493,18 +558,28 @@ async def buscar_lista_rotinas(usuario, senha, empresa, assessor, ano, vigencia,
             lista_rotinas = []
             for index, linha in enumerate(linhas):
                 texto_linha = await linha.inner_text()
-                colunas = [col.strip() for col in texto_linha.split('\n') if col.strip()]
-                
+                colunas = [
+                    col.strip()
+                    for col in texto_linha.split("\n")
+                    if col.strip()
+                ]
+
                 escola = colunas[1] if len(colunas) > 1 else "Escola N/I"
-                servidor = colunas[2] if len(colunas) > 2 else f"Servidor #{index+1}"
+                servidor = (
+                    colunas[2]
+                    if len(colunas) > 2
+                    else f"Servidor #{index+1}"
+                )
                 situacao = colunas[5] if len(colunas) > 5 else "N/I"
 
-                lista_rotinas.append({
-                    "Index": index,
-                    "Unidade Escolar": escola,
-                    "Servidor": servidor,
-                    "Situação": situacao
-                })
+                lista_rotinas.append(
+                    {
+                        "Index": index,
+                        "Unidade Escolar": escola,
+                        "Servidor": servidor,
+                        "Situação": situacao,
+                    }
+                )
 
             await browser.close()
             return lista_rotinas
