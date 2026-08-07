@@ -546,7 +546,10 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
         page = await context.new_page()
 
         try:
-            await page.goto("https://www.sgde.ms.gov.br/progetec/rotinaAnalise", wait_until="domcontentloaded")
+            await page.goto(
+                "https://www.sgde.ms.gov.br/progetec/rotinaAnalise",
+                wait_until="domcontentloaded",
+            )
             await page.wait_for_timeout(3000)
 
             target_frame = page
@@ -556,24 +559,74 @@ async def extrair_rotina_especifica(usuario, senha, empresa, assessor, ano, vige
                         target_frame = frame
                         break
 
-            simular_box = await target_frame.wait_for_selector("div[name='multiplicadorNte']", timeout=20000)
+            # 1. Seleciona o Assessor / Multiplicador
+            simular_box = await target_frame.wait_for_selector(
+                "div[name='multiplicadorNte']", timeout=20000
+            )
             await simular_box.click()
-            await target_frame.fill(".select2-search input.select2-input:visible", assessor)
-            await target_frame.click(f".select2-result-label:has-text('{assessor}')")
+            await target_frame.fill(
+                ".select2-search input.select2-input:visible", assessor
+            )
+            await target_frame.wait_for_selector(
+                ".select2-highlighted, .select2-result-label", timeout=5000
+            )
+            await target_frame.click(
+                f".select2-result-label:has-text('{assessor}')"
+            )
 
-            dropdowns = await target_frame.query_selector_all("a.select2-choice")
+            # Mapeia os dropdowns Select2 na tela
+            dropdowns = await target_frame.query_selector_all(
+                "a.select2-choice"
+            )
+
+            # 2. Seleciona o Ano (ex: "2026")
             if len(dropdowns) >= 4:
                 await dropdowns[3].click()
-                await target_frame.click(f".select2-result-label:has-text('{ano}')")
+                await target_frame.wait_for_selector(
+                    ".select2-search input.select2-input:visible", timeout=3000
+                )
+                await target_frame.fill(
+                    ".select2-search input.select2-input:visible", str(ano)
+                )
+                await target_frame.click(
+                    f".select2-result-label:has-text('{ano}')"
+                )
 
+            # 3. Seleciona a Vigência / Mês (Garante que passe apenas o MÊS, ex: "Julho")
             if len(dropdowns) >= 5:
-                await dropdowns[4].click()
-                await target_frame.click(f".select2-result-label:has-text('{vigencia}')")
+                # Trata a variável para extrair apenas o mês caso venha no formato "Julho/2026"
+                mes_puro = (
+                    vigencia.split("/")[0].strip()
+                    if "/" in str(vigencia)
+                    else str(vigencia).strip()
+                )
 
+                await dropdowns[4].click()
+                await target_frame.wait_for_selector(
+                    ".select2-search input.select2-input:visible", timeout=3000
+                )
+                # Digita o mês na caixa de busca do Select2 para garantir a correspondência
+                await target_frame.fill(
+                    ".select2-search input.select2-input:visible", mes_puro
+                )
+                await target_frame.wait_for_selector(
+                    ".select2-highlighted, .select2-result-label", timeout=5000
+                )
+                await target_frame.click(
+                    f".select2-result-label:has-text('{mes_puro}')"
+                )
+
+            # 4. Clica no Botão Pesquisar
             await target_frame.click("input[ng-click='pesquisar()']")
             await page.wait_for_timeout(2000)
-            await target_frame.wait_for_selector(".cg-busy-backdrop", state="hidden", timeout=20000)
-            await target_frame.wait_for_selector(".ui-grid-row", timeout=20000)
+
+            # Aguarda a tabela recarregar
+            await target_frame.wait_for_selector(
+                ".cg-busy-backdrop", state="hidden", timeout=20000
+            )
+            await target_frame.wait_for_selector(
+                ".ui-grid-row", timeout=20000
+            )
 
             linhas = await target_frame.query_selector_all(".ui-grid-row")
             
