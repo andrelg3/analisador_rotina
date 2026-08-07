@@ -62,10 +62,8 @@ def verificar_sessao_ativa():
     st.session_state.sgde_login_time = 0
     return False, "00:00"
 
-import streamlit as st
-
 # -----------------------------------------------------------------------------
-# AJUSTES VISUAIS DA SIDEBAR (LARGURA E ESPAÇAMENTOS REDUZIDOS)
+# AJUSTES VISUAIS DA SIDEBAR (LARGURA E ELIMINAÇÃO DE ESPAÇO SUPERIOR)
 # -----------------------------------------------------------------------------
 st.markdown(
     """
@@ -74,18 +72,27 @@ st.markdown(
         [data-testid="stSidebar"] {
             width: 270px !important;
         }
-        /* Reduz o topo da sidebar */
-        [data-testid="stSidebar"] > div:first-child {
-            padding-top: 1rem !important;
+        
+        /* Remove o topo/padding excessivo reservado pelo Streamlit */
+        [data-testid="stSidebarHeader"] {
+            padding-top: 0rem !important;
+            padding-bottom: 0rem !important;
+            height: 0px !important;
         }
-        /* Compacta o espaçamento vertical geral da sidebar */
+        
+        [data-testid="stSidebarUserContent"] {
+            padding-top: 0.5rem !important;
+        }
+
+        /* Compacta o espaçamento vertical geral dos elementos da sidebar */
         [data-testid="stSidebar"] .element-container {
-            margin-bottom: 0.3rem !important;
+            margin-bottom: 0.2rem !important;
         }
+
         /* Reduz o espaçamento das linhas divisórias (hr) */
         [data-testid="stSidebar"] hr {
-            margin-top: 0.5rem !important;
-            margin-bottom: 0.5rem !important;
+            margin-top: 0.4rem !important;
+            margin-bottom: 0.4rem !important;
         }
     </style>
 """,
@@ -249,7 +256,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 2. Seleção do Assessor (Ordenados alfabeticamente)
+    # 2. Seleção do Assessor
     lista_assessores = ["Selecione um Assessor..."] + sorted(
         list(ASSESSORES_PCPI.keys())
     )
@@ -260,7 +267,7 @@ with st.sidebar:
         key="sb_assessor",
     )
 
-    # Sincroniza a variável 'assessor_nome' esperada pelo código
+    # Sincroniza a variável 'assessor_nome'
     if assessor_escolhido != "Selecione um Assessor...":
         st.session_state.assessor_nome = assessor_escolhido
         assessor_nome = assessor_escolhido
@@ -268,7 +275,7 @@ with st.sidebar:
         st.session_state.assessor_nome = None
         assessor_nome = None
 
-    # 3. Seleção do PCPI (Ordenados alfabeticamente com 'Todos' no topo)
+    # 3. Seleção do PCPI
     tem_assessor = st.session_state.assessor_nome is not None
 
     if tem_assessor:
@@ -292,7 +299,7 @@ with st.sidebar:
     else:
         st.session_state.pcpi_selecionado = None
 
-    # 4. Seleção de Mês e Ano (Sincroniza mes_ref e ano_ref para evitar o erro NameError)
+    # 4. Seleção de Mês e Ano
     tem_pcpi = st.session_state.pcpi_selecionado is not None
 
     col_mes, col_ano = st.columns(2)
@@ -322,9 +329,14 @@ with st.sidebar:
             "📆 Ano:", options=[2026, 2025, 2024], disabled=not tem_pcpi, key="sb_ano"
         )
 
-    # Garante a persistência de mes_ref e ano_ref no session_state
+    # Definição e sincronização global de mes_ref, ano_ref, vigencia_ref e data_ref
+    vigencia_ref = f"{mes_ref}/{ano_ref}"
+    data_ref = f"{mes_ref} de {ano_ref}"
+
     st.session_state.mes_ref = mes_ref
     st.session_state.ano_ref = ano_ref
+    st.session_state.vigencia_ref = vigencia_ref
+    st.session_state.data_ref = data_ref
 
     st.write("")
 
